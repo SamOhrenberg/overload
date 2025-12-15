@@ -1,0 +1,36 @@
+# --- Planning / working docs (intentionally untracked) ---
+docs/
+
+# --- Node / build ---
+node_modules/
+dist/
+build/
+.output/
+.svelte-kit/
+.next/
+coverage/
+*.tsbuildinfo
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Databases / data volumes ---
+*.sqlite
+*.sqlite3
+*.db
+data/
+pgdata/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
