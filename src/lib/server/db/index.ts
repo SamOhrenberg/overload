@@ -1,14 +1,10 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { env } from '$lib/server/config';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not set');
-}
-
 // A single shared connection pool for the app.
-const client = postgres(connectionString, {
+const client = postgres(env.DATABASE_URL, {
   max: 10,
   idle_timeout: 20
 });
