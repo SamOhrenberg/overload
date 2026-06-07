@@ -1,7 +1,10 @@
 import type { Handle } from '@sveltejs/kit';
 import { readSessionCookie, validateSessionToken } from '$lib/server/auth/session';
+import { bootstrap } from '$lib/server/bootstrap';
 
 export const handle: Handle = async ({ event, resolve }) => {
+  await bootstrap();
+
   const token = readSessionCookie(event.cookies);
   if (token) {
     const result = await validateSessionToken(token);
