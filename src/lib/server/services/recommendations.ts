@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { recommendations, exercises } from '$lib/server/db/schema';
+import { recommendations, exercises, workoutExercises } from '$lib/server/db/schema';
 import { getActiveGoal } from './goals';
 import { lastWorkingSets } from './sets';
 import { lastCardioBout } from './cardio';
@@ -84,6 +84,25 @@ export async function generateForExercise(
     })
     .returning();
   return row;
+}
+
+/**
+ * Regenerate recommendations for every exercise performed in a workout.
+ * Called when a workout is finished — the just-logged session becomes the
+ * basis for next time.
+ */
+export async function generateForWorkout(userId: string, workoutId: string) {
+  const entries = await db
+    .selectDistinct({ exerciseId: workoutExercises.exerciseId })
+    .from(workoutExercises)
+    .where(eq(workoutExercises.workoutId, workoutId));
+
+  const out = [];
+  for (const { exerciseId } of entries) {
+    const row = await generateForExercise(userId, exerciseId);
+    if (row) out.push(row);
+  }
+  return out;
 }
 
 /** Pending recommendations for the Today screen, with exercise names. */

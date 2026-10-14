@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import { requireUser } from '$lib/server/http';
 import { getWorkout, finishWorkout, addExercise } from '$lib/server/services/workouts';
+import { detectPrsForWorkout } from '$lib/server/services/prs';
+import { generateForWorkout } from '$lib/server/services/recommendations';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
@@ -19,7 +21,11 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
     readiness: body.readiness ?? null
   });
   if (!row) throw error(404, 'Workout not found');
-  return json(row);
+
+  // Finishing a workout triggers PR detection and fresh recommendations.
+  const prs = await detectPrsForWorkout(user.id, params.id);
+  const recommendations = await generateForWorkout(user.id, params.id);
+  return json({ workout: row, prs, recommendations });
 };
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {
