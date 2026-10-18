@@ -42,6 +42,13 @@ export const env = {
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? '',
   ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? '',
 
+  // UI origins allowed to call the API cross-origin (e.g. a GitHub Pages host).
+  CORS_ALLOWED_ORIGINS: optional('CORS_ALLOWED_ORIGINS', '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  AUTH_TOKENS_ENABLED: bool('AUTH_TOKENS_ENABLED', true),
+
   DEFAULT_UNIT: optional('DEFAULT_UNIT', 'lb') as 'lb' | 'kg',
   INVITE_DEFAULT_EXPIRY_DAYS: int('INVITE_DEFAULT_EXPIRY_DAYS', 14),
   REST_TIMER_DEFAULT_SEC: int('REST_TIMER_DEFAULT_SEC', 120),
