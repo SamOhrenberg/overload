@@ -90,3 +90,11 @@ export function deleteSessionCookie(cookies: Cookies, secure: boolean) {
 export function readSessionCookie(cookies: Cookies): string | null {
   return cookies.get(SESSION_COOKIE) ?? null;
 }
+
+/** Bearer token from the Authorization header (cross-origin clients). */
+export function readBearerToken(request: Request): string | null {
+  const header = request.headers.get('authorization');
+  if (!header) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return match ? match[1] : null;
+}

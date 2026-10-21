@@ -1,7 +1,8 @@
 import type { Handle } from '@sveltejs/kit';
-import { readSessionCookie, validateSessionToken } from '$lib/server/auth/session';
+import { readSessionCookie, readBearerToken, validateSessionToken } from '$lib/server/auth/session';
 import { bootstrap } from '$lib/server/bootstrap';
 import { allowedOrigin, corsHeaders } from '$lib/server/cors';
+import { env } from '$lib/server/config';
 
 export const handle: Handle = async ({ event, resolve }) => {
   await bootstrap();
@@ -13,7 +14,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
 
-  const token = readSessionCookie(event.cookies);
+  const token =
+    readSessionCookie(event.cookies) ??
+    (env.AUTH_TOKENS_ENABLED ? readBearerToken(event.request) : null);
   if (token) {
     const result = await validateSessionToken(token);
     event.locals.user = result?.user ?? null;
