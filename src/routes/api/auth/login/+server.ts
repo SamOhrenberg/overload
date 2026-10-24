@@ -5,6 +5,7 @@ import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { verifyPassword } from '$lib/server/auth/password';
 import { createSession, generateSessionToken, setSessionCookie } from '$lib/server/auth/session';
+import { rateLimit } from '$lib/server/ratelimit';
 import type { RequestHandler } from './$types';
 
 /**
@@ -12,7 +13,10 @@ import type { RequestHandler } from './$types';
  * bearer token the client stores and sends as `Authorization: Bearer <token>`.
  * Also sets the session cookie for same-origin use.
  */
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
+  if (!rateLimit(`login:${getClientAddress()}`, 10, 60_000)) {
+    return json({ error: 'Too many attempts. Try again shortly.' }, { status: 429 });
+  }
   const body = await request.json().catch(() => ({}));
   const username = String(body.username ?? '').trim();
   const password = String(body.password ?? '');

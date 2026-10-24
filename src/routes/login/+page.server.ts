@@ -5,6 +5,7 @@ import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { verifyPassword } from '$lib/server/auth/password';
 import { createSession, generateSessionToken, setSessionCookie } from '$lib/server/auth/session';
+import { rateLimit } from '$lib/server/ratelimit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -13,7 +14,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request, cookies }) => {
+  default: async ({ request, cookies, getClientAddress }) => {
+    if (!rateLimit(`login:${getClientAddress()}`, 10, 60_000)) {
+      return fail(429, { error: 'Too many attempts. Wait a minute and try again.' });
+    }
+
     const data = await request.formData();
     const username = String(data.get('username') ?? '').trim();
     const password = String(data.get('password') ?? '');
