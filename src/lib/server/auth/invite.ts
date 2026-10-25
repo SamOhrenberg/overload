@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { sha256 } from '@oslojs/crypto/sha2';
 import { encodeHexLowerCase } from '@oslojs/encoding';
 import { db } from '$lib/server/db';
@@ -58,6 +58,37 @@ export async function validateInvite(code: string): Promise<InviteCheck> {
   if (row.expiresAt && row.expiresAt.getTime() < Date.now()) return { ok: false, reason: 'expired' };
   if (row.uses >= row.maxUses) return { ok: false, reason: 'exhausted' };
   return { ok: true, id: row.id };
+}
+
+/** List invites for the admin screen (never returns the code itself). */
+export async function listInvites() {
+  const rows = await db
+    .select({
+      id: invites.id,
+      note: invites.note,
+      maxUses: invites.maxUses,
+      uses: invites.uses,
+      expiresAt: invites.expiresAt,
+      createdAt: invites.createdAt
+    })
+    .from(invites)
+    .orderBy(desc(invites.createdAt));
+
+  const now = Date.now();
+  return rows.map((r) => ({
+    ...r,
+    status:
+      r.uses >= r.maxUses
+        ? 'exhausted'
+        : r.expiresAt && r.expiresAt.getTime() < now
+          ? 'expired'
+          : 'active'
+  }));
+}
+
+/** Revoke an invite by exhausting it. */
+export async function revokeInvite(id: string) {
+  await db.update(invites).set({ maxUses: 0 }).where(eq(invites.id, id));
 }
 
 /** Atomically consume one use; returns false if it was raced to exhaustion. */
