@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Overload">
+  <rect width="512" height="512" rx="112" fill="#B8FF3C" />
+  <!-- Ascending stacked-plate chevrons: "a little more each time" -->
+  <g fill="none" stroke="#0B0D10" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="140,300 256,196 372,300" />
+    <polyline points="140,372 256,268 372,372" opacity="0.55" />
+  </g>
+</svg>

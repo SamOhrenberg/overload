@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Overload">
+  <!-- Full-bleed lime field for maskable safe zone -->
+  <rect width="512" height="512" fill="#B8FF3C" />
+  <g fill="none" stroke="#0B0D10" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="168,296 256,216 344,296" />
+    <polyline points="168,352 256,272 344,352" opacity="0.55" />
+  </g>
+</svg>
