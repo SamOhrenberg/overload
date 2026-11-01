@@ -15,6 +15,7 @@
     "db:migrate": "node build/migrate.js"
   },
   "dependencies": {
+    "lucide-svelte": "^0.460.0",
     "@node-rs/argon2": "^2.0.2",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
