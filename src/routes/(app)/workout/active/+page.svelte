@@ -6,6 +6,7 @@
   import RestTimer from '$lib/components/RestTimer.svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
   import { api, apiJson } from '$lib/client/api';
+  import { send } from '$lib/client/outbox';
 
   type Goal = 'strength' | 'endurance' | 'stamina';
   type LoggedSet = { weight: number | null; reps: number; rir: number | null; isWarmup: boolean };
@@ -88,10 +89,7 @@
     const entry = entries[current];
     if (!entry) return;
     entry.sets.push(payload); // optimistic
-    void api('/api/sets', {
-      method: 'POST',
-      body: JSON.stringify({ workoutExerciseId: entry.id, ...payload })
-    });
+    void send('/api/sets', { workoutExerciseId: entry.id, ...payload });
     if (!payload.isWarmup) {
       resting = true;
       restKey += 1;
