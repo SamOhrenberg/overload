@@ -6,8 +6,11 @@ import {
   numeric,
   boolean,
   timestamp,
+  date,
   jsonb,
-  index
+  index,
+  primaryKey,
+  unique
 } from 'drizzle-orm/pg-core';
 
 /** Goal taxonomy that drives the progression engine. */
@@ -16,6 +19,15 @@ export type Goal = 'strength' | 'endurance' | 'stamina';
 export type StaminaMode = 'cardio' | 'work_capacity';
 export type UserRole = 'admin' | 'member';
 export type Unit = 'lb' | 'kg' | 'km' | 'mi' | 'min';
+/** Speed zones a run is broken into. Walk is recovery; jog and sprint progress. */
+export type SpeedZone = 'walk' | 'jog' | 'sprint';
+/** One labelled stretch of a run at a single effort/speed. */
+export type RunSegment = {
+  zone: SpeedZone;
+  durationSec: number;
+  distance?: number;
+  paceSec?: number;
+};
 
 // ---------------------------------------------------------------------------
 // Accounts & auth
@@ -71,6 +83,7 @@ export const exercises = pgTable(
     unit: text('unit').$type<Unit>().notNull().default('lb'),
     loadIncrement: numeric('load_increment'),
     defaultGoal: text('default_goal').$type<Goal>(),
+    tracksSpeedZones: boolean('tracks_speed_zones').notNull().default(false),
     isArchived: boolean('is_archived').notNull().default(false)
   },
   (t) => ({
@@ -179,6 +192,8 @@ export const cardioBouts = pgTable('cardio_bouts', {
   intervals: jsonb('intervals').$type<
     Array<{ workSec: number; restSec: number; pace?: number; hr?: number }>
   >(),
+  /** Walk/Jog/Sprint breakdown of the run, in the order performed. */
+  segments: jsonb('segments').$type<RunSegment[]>(),
   perceived: integer('perceived')
 });
 
@@ -208,6 +223,90 @@ export const recommendations = pgTable(
   },
   (t) => ({
     userExerciseIdx: index('recommendations_user_exercise_idx').on(t.userId, t.exerciseId)
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Routines: exercise groups, weekly schedule, same-day plan override
+// ---------------------------------------------------------------------------
+
+/** A user's named exercise group (e.g. "Push", "Arms", "Upper Body"). */
+export const exerciseGroups = pgTable(
+  'exercise_groups',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** Design-token key (see routines palette), not a raw hex. */
+    color: text('color'),
+    icon: text('icon'),
+    orderIndex: integer('order_index').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => ({
+    userIdx: index('exercise_groups_user_idx').on(t.userId)
+  })
+);
+
+/** Many-to-many: one exercise can belong to many groups. */
+export const exerciseGroupMembers = pgTable(
+  'exercise_group_members',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => exerciseGroups.id, { onDelete: 'cascade' }),
+    exerciseId: uuid('exercise_id')
+      .notNull()
+      .references(() => exercises.id, { onDelete: 'cascade' })
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.groupId, t.exerciseId] }),
+    exIdx: index('exercise_group_members_ex_idx').on(t.exerciseId)
+  })
+);
+
+/** Recurring weekly default: a weekday (0–6, Sun=0) maps to many groups. */
+export const routineSchedule = pgTable(
+  'routine_schedule',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dayOfWeek: integer('day_of_week').notNull(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => exerciseGroups.id, { onDelete: 'cascade' })
+  },
+  (t) => ({
+    uniq: unique('routine_schedule_uniq').on(t.userId, t.dayOfWeek, t.groupId),
+    userDayIdx: index('routine_schedule_user_day_idx').on(t.userId, t.dayOfWeek)
+  })
+);
+
+/**
+ * Same-day override. When any row exists for (user, date) it REPLACES the
+ * weekday's scheduled groups for that date only; absence falls back to
+ * routine_schedule. This is how a one-off swap works without mutating the
+ * recurring weekly schedule.
+ */
+export const dayPlan = pgTable(
+  'day_plan',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => exerciseGroups.id, { onDelete: 'cascade' })
+  },
+  (t) => ({
+    uniq: unique('day_plan_uniq').on(t.userId, t.date, t.groupId),
+    userDateIdx: index('day_plan_user_date_idx').on(t.userId, t.date)
   })
 );
 

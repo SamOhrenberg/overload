@@ -1,13 +1,13 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { House, ChartColumn, Plus, Dumbbell, User } from 'lucide-svelte';
+  import { House, Target, ChartColumn, Plus, User } from 'lucide-svelte';
 
   const tabs = [
     { href: '/', label: 'Today', icon: House, match: (p: string) => p === '/' },
-    { href: '/history', label: 'History', icon: ChartColumn, match: (p: string) => p.startsWith('/history') }
+    { href: '/targets', label: 'Targets', icon: Target, match: (p: string) => p.startsWith('/targets') }
   ];
   const tabsRight = [
-    { href: '/exercises', label: 'Exercises', icon: Dumbbell, match: (p: string) => p.startsWith('/exercises') },
+    { href: '/history', label: 'History', icon: ChartColumn, match: (p: string) => p.startsWith('/history') },
     { href: '/me', label: 'Me', icon: User, match: (p: string) => p.startsWith('/me') }
   ];
 

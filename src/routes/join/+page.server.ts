@@ -5,6 +5,7 @@ import { users } from '$lib/server/db/schema';
 import { hashPassword, validatePasswordStrength } from '$lib/server/auth/password';
 import { validateInvite, consumeInvite } from '$lib/server/auth/invite';
 import { createSession, generateSessionToken, setSessionCookie } from '$lib/server/auth/session';
+import { ensureDefaultGroupsForUser } from '$lib/server/db/seed';
 import { env } from '$lib/server/config';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -51,6 +52,9 @@ export const actions: Actions = {
       .insert(users)
       .values({ username, passwordHash, role: 'member', defaultUnit: env.DEFAULT_UNIT })
       .returning({ id: users.id });
+
+    // Give new members a ready-made set of routine groups to start from.
+    await ensureDefaultGroupsForUser(user.id);
 
     const token = generateSessionToken();
     await createSession(token, user.id);

@@ -63,25 +63,33 @@
     </div>
   </button>
 
-  {#if expanded && rationale}
+  {#if expanded && (rationale || onaccept || onadjust)}
     <div class="-mt-1 px-4 pb-4">
-      <p class="mb-3 text-caption text-fg-2">{rationale}</p>
-      <div class="flex gap-2">
-        <button
-          class="h-11 flex-1 rounded-md bg-accent text-body font-semibold text-accent-on transition-transform duration-fast active:scale-[.98]"
-          onclick={(e) => {
-            e.stopPropagation();
-            onaccept?.();
-          }}>Accept</button
-        >
-        <button
-          class="h-11 flex-1 rounded-md border border-border-strong bg-surface-2 text-body font-semibold text-fg"
-          onclick={(e) => {
-            e.stopPropagation();
-            onadjust?.();
-          }}>Adjust</button
-        >
-      </div>
+      {#if rationale}
+        <p class="mb-3 text-caption text-fg-2">{rationale}</p>
+      {/if}
+      {#if onaccept || onadjust}
+        <div class="flex gap-2">
+          {#if onaccept}
+            <button
+              class="h-11 flex-1 rounded-md bg-accent text-body font-semibold text-accent-on transition-transform duration-fast active:scale-[.98]"
+              onclick={(e) => {
+                e.stopPropagation();
+                onaccept?.();
+              }}>Accept</button
+            >
+          {/if}
+          {#if onadjust}
+            <button
+              class="h-11 flex-1 rounded-md border border-border-strong bg-surface-2 text-body font-semibold text-fg"
+              onclick={(e) => {
+                e.stopPropagation();
+                onadjust?.();
+              }}>Adjust</button
+            >
+          {/if}
+        </div>
+      {/if}
     </div>
   {/if}
 </div>

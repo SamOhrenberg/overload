@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { requireUser } from '$lib/server/http';
-import { getWorkout, finishWorkout, addExercise } from '$lib/server/services/workouts';
+import { getWorkout, finishWorkout, addExercise, deleteWorkout } from '$lib/server/services/workouts';
 import { detectPrsForWorkout } from '$lib/server/services/prs';
 import { generateForWorkout } from '$lib/server/services/recommendations';
 import type { RequestHandler } from './$types';
@@ -26,6 +26,13 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
   const prs = await detectPrsForWorkout(user.id, params.id);
   const recommendations = await generateForWorkout(user.id, params.id);
   return json({ workout: row, prs, recommendations });
+};
+
+export const DELETE: RequestHandler = async ({ locals, params }) => {
+  const user = requireUser(locals);
+  const ok = await deleteWorkout(user.id, params.id);
+  if (!ok) throw error(404, 'Workout not found');
+  return new Response(null, { status: 204 });
 };
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {

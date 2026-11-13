@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ChevronRight, Download, LogOut } from 'lucide-svelte';
+  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell } from 'lucide-svelte';
   import { api } from '$lib/client/api';
 
   let { data } = $props();
@@ -60,6 +60,18 @@
     <span class="text-body text-fg">Units</span>
     <span class="text-caption text-fg-muted">{data.user.defaultUnit}</span>
   </div>
+</div>
+
+<h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Training</h2>
+<div class="mb-6 space-y-2">
+  <a href="/routines" class="flex items-center justify-between rounded-lg bg-surface p-4">
+    <span class="flex items-center gap-2 text-body text-fg"><CalendarCog size={18} /> Routines</span>
+    <ChevronRight size={18} class="text-fg-muted" />
+  </a>
+  <a href="/exercises" class="flex items-center justify-between rounded-lg bg-surface p-4">
+    <span class="flex items-center gap-2 text-body text-fg"><Dumbbell size={18} /> Exercises</span>
+    <ChevronRight size={18} class="text-fg-muted" />
+  </a>
 </div>
 
 <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Data</h2>

@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { cardioBouts, workoutExercises, workouts } from '$lib/server/db/schema';
+import type { RunSegment } from '$lib/server/db/schema';
 
 export type CardioInput = {
   workoutExerciseId: string;
@@ -10,30 +11,55 @@ export type CardioInput = {
   avgHr?: number | null;
   maxHr?: number | null;
   intervals?: Array<{ workSec: number; restSec: number; pace?: number; hr?: number }> | null;
+  segments?: RunSegment[] | null;
   perceived?: number | null;
 };
 
 export async function logCardioBout(input: CardioInput) {
+  const segments = input.segments?.length ? input.segments : null;
+
+  // A zoned run's total time is the sum of its segments when not given directly.
+  let durationSec = input.durationSec;
+  if ((!durationSec || durationSec <= 0) && segments) {
+    durationSec = segments.reduce((n, s) => n + (s.durationSec || 0), 0);
+  }
+
   // Derive pace from distance + duration when not supplied.
   let avgPaceSec = input.avgPaceSec ?? null;
   if (avgPaceSec == null && input.distance && input.distance > 0) {
-    avgPaceSec = Math.round(input.durationSec / input.distance);
+    avgPaceSec = Math.round(durationSec / input.distance);
   }
 
   const [row] = await db
     .insert(cardioBouts)
     .values({
       workoutExerciseId: input.workoutExerciseId,
-      durationSec: input.durationSec,
+      durationSec,
       distance: input.distance != null ? String(input.distance) : null,
       avgPaceSec,
       avgHr: input.avgHr ?? null,
       maxHr: input.maxHr ?? null,
       intervals: input.intervals ?? null,
+      segments,
       perceived: input.perceived ?? null
     })
     .returning();
   return row;
+}
+
+/**
+ * Resolve the owning user and exercise for a workout-exercise row, verifying
+ * the row belongs to `userId`. Returns null if it does not (or is missing).
+ */
+export async function ownedExerciseForEntry(userId: string, workoutExerciseId: string) {
+  const [row] = await db
+    .select({ exerciseId: workoutExercises.exerciseId, userId: workouts.userId })
+    .from(workoutExercises)
+    .innerJoin(workouts, eq(workoutExercises.workoutId, workouts.id))
+    .where(eq(workoutExercises.id, workoutExerciseId))
+    .limit(1);
+  if (!row || row.userId !== userId) return null;
+  return { exerciseId: row.exerciseId };
 }
 
 /** The most recent previous cardio bout for an exercise (engine input). */

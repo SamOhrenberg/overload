@@ -3,23 +3,34 @@
   import { goto } from '$app/navigation';
   import { X, Plus, ChevronLeft, ChevronRight, Check } from 'lucide-svelte';
   import SetLogger from '$lib/components/SetLogger.svelte';
+  import RunZoneLogger from '$lib/components/RunZoneLogger.svelte';
+  import type { RunPayload } from '$lib/components/RunZoneLogger.svelte';
   import RestTimer from '$lib/components/RestTimer.svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
   import { api, apiJson } from '$lib/client/api';
-  import { send } from '$lib/client/outbox';
+  import { send, flush } from '$lib/client/outbox';
+  import { zoneLabelsFor } from '$lib/format';
 
   type Goal = 'strength' | 'endurance' | 'stamina';
   type LoggedSet = { weight: number | null; reps: number; rir: number | null; isWarmup: boolean };
+  type CardioTarget = {
+    jog?: { holdSec?: number };
+    sprint?: { intervalSec?: number; reps?: number };
+  } | null;
   type Entry = {
     id: string;
     exerciseId: string;
     name: string;
     goal: Goal;
-    unit: 'lb' | 'kg';
+    unit: string;
     loadIncrement: number;
     bodyweight: boolean;
+    kind: 'resistance' | 'cardio' | 'mobility';
+    tracksSpeedZones: boolean;
     target: { weight: number; reps: number; rir: number | null };
+    cardioTarget: CardioTarget;
     sets: LoggedSet[];
+    bouts: RunPayload[];
   };
 
   let workoutId = $state<string | null>(null);
@@ -46,7 +57,7 @@
     const [w, lib, pending] = await Promise.all([
       apiJson<any>('/api/workouts', { method: 'POST', body: JSON.stringify({}) }),
       apiJson<any[]>('/api/exercises'),
-      apiJson<any[]>('/api/recommendations').catch(() => [])
+      apiJson<any[]>('/api/recommendations?scope=prefill').catch(() => [])
     ]);
     workoutId = w.id;
     startedAt = new Date(w.startedAt).getTime();
@@ -63,6 +74,12 @@
     };
   }
 
+  function cardioTargetFor(ex: any): CardioTarget {
+    const t = recs[ex.id]?.target;
+    if (!t || t.metric !== 'run_zones') return null;
+    return { jog: t.jog, sprint: t.sprint };
+  }
+
   async function addExercise(ex: any) {
     pickerOpen = false;
     if (!workoutId) return;
@@ -76,11 +93,15 @@
       exerciseId: ex.id,
       name: ex.name,
       goal,
-      unit: ex.unit === 'kg' ? 'kg' : 'lb',
+      unit: ex.unit ?? 'lb',
       loadIncrement: ex.loadIncrement ? Number(ex.loadIncrement) : 5,
       bodyweight: ex.modality === 'bodyweight' || ex.loadIncrement == null,
+      kind: ex.kind ?? 'resistance',
+      tracksSpeedZones: !!ex.tracksSpeedZones,
       target: targetFor(ex),
-      sets: []
+      cardioTarget: cardioTargetFor(ex),
+      sets: [],
+      bouts: []
     });
     current = entries.length - 1;
   }
@@ -96,14 +117,53 @@
     }
   }
 
+  async function onLogBout(payload: RunPayload) {
+    const entry = entries[current];
+    if (!entry) return;
+    entry.bouts.push(payload); // optimistic
+    void send('/api/cardio', {
+      workoutExerciseId: entry.id,
+      durationSec: payload.durationSec,
+      distance: payload.distance,
+      segments: payload.segments
+    });
+  }
+
+  const zoneSummary = (b: RunPayload, name: string) => {
+    const z = zoneLabelsFor(name);
+    const sum = (zone: string) =>
+      b.segments.filter((s) => s.zone === zone).reduce((n, s) => n + s.durationSec, 0);
+    const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    const sprints = b.segments.filter((s) => s.zone === 'sprint').length;
+    return `${mmss(b.durationSec)} · ${z.jog.toLowerCase()} ${mmss(sum('jog'))} · ${sprints} ${z.sprint.toLowerCase()}`;
+  };
+
   async function finish() {
     if (!workoutId) return;
+    // Only log a session that actually tracked something. If no sets were
+    // recorded, discard the empty workout instead of cluttering history.
+    const tracked = entries.some((e) => e.sets.length > 0 || e.bouts.length > 0);
+    if (!tracked) {
+      await api(`/api/workouts/${workoutId}`, { method: 'DELETE' }).catch(() => {});
+      goto('/');
+      return;
+    }
+    // Drain any queued sets/bouts first so the end-of-workout recommendation is
+    // computed from writes that have actually reached the server (a run logged
+    // while the server was mid-redeploy would otherwise look like "no data").
+    await flush();
     await api(`/api/workouts/${workoutId}`, { method: 'PATCH', body: JSON.stringify({}) });
     goto(`/workout/${workoutId}/summary`);
   }
 
   let entry = $derived(entries[current]);
   let workingCount = $derived(entry ? entry.sets.filter((s) => !s.isWarmup).length : 0);
+  let isZonedCardio = $derived(!!entry && entry.kind === 'cardio' && entry.tracksSpeedZones);
+  let zoneLabels = $derived(
+    entry ? zoneLabelsFor(entry.name) : { walk: 'Walk', jog: 'Jog', sprint: 'Sprint' }
+  );
+
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 </script>
 
 <div class="flex min-h-dvh flex-col">
@@ -140,11 +200,23 @@
           <h2 class="text-h1 text-fg">{entry.name}</h2>
           <GoalChip goal={entry.goal} />
         </div>
-        <p class="text-caption text-fg-2">
-          Target {entry.target.reps} reps{entry.bodyweight
-            ? ''
-            : ` @ ${entry.target.weight} ${entry.unit}`} · RIR {entry.target.rir}
-        </p>
+        {#if isZonedCardio}
+          <p class="text-caption text-fg-2">
+            {#if entry.cardioTarget?.jog?.holdSec || entry.cardioTarget?.sprint?.reps}
+              Target{#if entry.cardioTarget?.jog?.holdSec}
+                {zoneLabels.jog.toLowerCase()} {mmss(entry.cardioTarget.jog.holdSec)}{/if}{#if entry.cardioTarget?.jog?.holdSec && entry.cardioTarget?.sprint?.reps} ·{/if}{#if entry.cardioTarget?.sprint?.reps && entry.cardioTarget?.sprint?.intervalSec}
+                {entry.cardioTarget.sprint.reps}×{mmss(entry.cardioTarget.sprint.intervalSec)} {zoneLabels.sprint.toLowerCase()}{/if}
+            {:else}
+              Tap {zoneLabels.walk} / {zoneLabels.jog} / {zoneLabels.sprint} as you go
+            {/if}
+          </p>
+        {:else}
+          <p class="text-caption text-fg-2">
+            Target {entry.target.reps} reps{entry.bodyweight
+              ? ''
+              : ` @ ${entry.target.weight} ${entry.unit}`} · RIR {entry.target.rir}
+          </p>
+        {/if}
       </div>
       <button
         aria-label="Next exercise"
@@ -156,6 +228,13 @@
 
     <!-- Logged sets -->
     <div class="flex-1 space-y-2 overflow-y-auto p-4">
+      {#each entry.bouts as b, i}
+        <div class="flex items-center justify-between rounded-md bg-surface px-4 py-2">
+          <span class="text-caption text-fg-2">Run {i + 1}</span>
+          <span class="num font-mono text-fg">{zoneSummary(b, entry.name)}</span>
+          <Check size={16} class="text-success" />
+        </div>
+      {/each}
       {#each entry.sets as s, i}
         <div
           class="flex items-center justify-between rounded-md bg-surface px-4 py-2 {s.isWarmup
@@ -180,25 +259,36 @@
 
     <!-- Thumb zone -->
     <div class="sticky bottom-0">
-      {#if resting}
-        <div class="px-safe pb-2">
-          {#key restKey}
-            <RestTimer seconds={entry.goal === 'endurance' ? 75 : 120} ondone={() => (resting = false)} />
-          {/key}
-        </div>
+      {#if isZonedCardio}
+        {#key `${entry.id}-${entry.bouts.length}`}
+          <RunZoneLogger
+            unit={entry.unit}
+            target={entry.cardioTarget}
+            labels={zoneLabels}
+            onlog={onLogBout}
+          />
+        {/key}
+      {:else}
+        {#if resting}
+          <div class="px-safe pb-2">
+            {#key restKey}
+              <RestTimer seconds={entry.goal === 'endurance' ? 75 : 120} ondone={() => (resting = false)} />
+            {/key}
+          </div>
+        {/if}
+        {#key `${entry.id}-${entry.sets.length}`}
+          <SetLogger
+            weight={entry.target.weight}
+            reps={entry.target.reps}
+            rir={entry.target.rir}
+            unit={entry.unit === 'kg' ? 'kg' : 'lb'}
+            loadIncrement={entry.loadIncrement}
+            bodyweight={entry.bodyweight}
+            lastWeight={entry.bodyweight ? null : entry.target.weight}
+            onlog={onLog}
+          />
+        {/key}
       {/if}
-      {#key `${entry.id}-${entry.sets.length}`}
-        <SetLogger
-          weight={entry.target.weight}
-          reps={entry.target.reps}
-          rir={entry.target.rir}
-          unit={entry.unit}
-          loadIncrement={entry.loadIncrement}
-          bodyweight={entry.bodyweight}
-          lastWeight={entry.bodyweight ? null : entry.target.weight}
-          onlog={onLog}
-        />
-      {/key}
     </div>
   {/if}
 </div>

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { runMigrations } from '$lib/server/db/migrate';
-import { seedBuiltInExercises } from '$lib/server/db/seed';
+import { seedBuiltInExercises, seedDefaultGroupsForUsers } from '$lib/server/db/seed';
 import { hashPassword } from '$lib/server/auth/password';
 import { env, assertEnv } from '$lib/server/config';
 
@@ -19,6 +19,8 @@ async function run() {
   await runMigrations(env.DATABASE_URL);
   await seedBuiltInExercises();
   await ensureAdmin();
+  // Back-fill starter routine groups for existing users (idempotent per user).
+  await seedDefaultGroupsForUsers();
 }
 
 async function ensureAdmin() {

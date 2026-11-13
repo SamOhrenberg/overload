@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { exercises } from '$lib/server/db/schema';
 import { exerciseHistory } from '$lib/server/services/history';
 import { getActiveGoal } from '$lib/server/services/goals';
+import { listGroups, getExerciseGroupIds } from '$lib/server/services/routines';
 import { detectStall } from '$lib/server/engine/stall';
 import type { PageServerLoad } from './$types';
 
@@ -12,9 +13,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const [exercise] = await db.select().from(exercises).where(eq(exercises.id, params.id));
   if (!exercise) throw error(404, 'Exercise not found');
 
-  const [points, goal] = await Promise.all([
+  const [points, goal, groups, memberOf] = await Promise.all([
     exerciseHistory(user.id, params.id, 30),
-    getActiveGoal(user.id, params.id)
+    getActiveGoal(user.id, params.id),
+    listGroups(user.id),
+    getExerciseGroupIds(user.id, params.id)
   ]);
 
   const series = [...points]
@@ -27,10 +30,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       id: exercise.id,
       name: exercise.name,
       unit: exercise.unit,
-      modality: exercise.modality
+      modality: exercise.modality,
+      tracksSpeedZones: exercise.tracksSpeedZones
     },
     goal: goal?.goal ?? exercise.defaultGoal ?? 'strength',
     points,
-    stall: detectStall(series)
+    stall: detectStall(series),
+    groups: groups.map((g) => ({ id: g.id, name: g.name, color: g.color })),
+    memberOf
   };
 };

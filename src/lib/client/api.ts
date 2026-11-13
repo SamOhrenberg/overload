@@ -80,6 +80,16 @@ async function probe(base: string, timeoutMs = 2500): Promise<boolean> {
   }
 }
 
+/**
+ * Forget the cached API base so the next call re-probes. Call this when the
+ * network may have changed (reconnect, tab refocus) — otherwise a base that
+ * resolved to "unreachable" while the server was briefly down (e.g. a redeploy)
+ * stays cached for the whole session even after the server returns.
+ */
+export function resetBase() {
+  activeBase = undefined;
+}
+
 /** Resolve a reachable API base, probing candidates and caching the winner. */
 export async function resolveBase(): Promise<string | null> {
   if (activeBase !== undefined) return activeBase;

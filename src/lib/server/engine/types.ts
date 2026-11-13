@@ -17,6 +17,19 @@ export type CardioPerf = {
   avgHr: number | null;
 };
 
+/** Per-zone summary of a run, used to progress jog and sprint separately. */
+export type RunZonePerf = {
+  /** Longest continuous jog (the jog-base lever). */
+  jogHoldSec: number;
+  jogTotalSec: number;
+  /** Representative sprint interval length and how many were performed. */
+  sprintIntervalSec: number;
+  sprintReps: number;
+  sprintTotalSec: number;
+  walkTotalSec: number;
+  totalSec: number;
+};
+
 /** The goal configuration for one exercise. */
 export type GoalConfig = {
   goal: Goal;
@@ -27,6 +40,8 @@ export type GoalConfig = {
   targetRir: number;
   loadIncrement: number | null;
   cardioMetric?: 'duration' | 'distance' | 'pace' | null;
+  /** When set, a stamina/cardio exercise progresses Walk/Jog/Sprint zones. */
+  tracksZones?: boolean;
 };
 
 /** Optional readiness, used to scale a recommendation up or down. */

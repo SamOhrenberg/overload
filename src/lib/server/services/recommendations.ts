@@ -1,10 +1,11 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { recommendations, exercises, workoutExercises } from '$lib/server/db/schema';
 import { getActiveGoal } from './goals';
 import { lastWorkingSets } from './sets';
 import { lastCardioBout } from './cardio';
 import { buildRecommendation } from '$lib/server/engine/recommend';
+import { zoneAggregates } from '$lib/server/engine/runZones';
 import type { GoalConfig } from '$lib/server/engine/types';
 
 /**
@@ -30,7 +31,8 @@ export async function generateForExercise(
     targetSets: goal?.targetSets ?? 3,
     targetRir: goal?.targetRir ?? 2,
     loadIncrement: exercise.loadIncrement != null ? Number(exercise.loadIncrement) : null,
-    cardioMetric: goal?.cardioMetric ?? 'distance'
+    cardioMetric: goal?.cardioMetric ?? 'distance',
+    tracksZones: exercise.tracksSpeedZones
   };
 
   const isCardio = effectiveGoal === 'stamina' && cfg.staminaMode === 'cardio';
@@ -46,7 +48,9 @@ export async function generateForExercise(
             avgPaceSec: last.bout.avgPaceSec,
             avgHr: last.bout.avgHr
           }
-        : null
+        : null,
+      lastRunZones:
+        cfg.tracksZones && last?.bout.segments ? zoneAggregates(last.bout.segments) : null
     });
   } else {
     const last = await lastWorkingSets(userId, exerciseId, excludeWorkoutId);
@@ -132,5 +136,59 @@ export async function setRecommendationStatus(
   await db
     .update(recommendations)
     .set({ status })
+    .where(and(eq(recommendations.id, id), eq(recommendations.userId, userId)));
+}
+
+/**
+ * Recommendations that should pre-fill the active workout logger. This is
+ * pending PLUS accepted/modified, so that "Accept" (or an Adjust edit) on Today
+ * doesn't stop a target from reaching the logger — the active screen previously
+ * loaded only pending, which made accepting silently drop the pre-fill. One row
+ * per exercise (newest wins).
+ */
+export async function getRecommendationsForPrefill(userId: string) {
+  const rows = await db
+    .select({
+      id: recommendations.id,
+      exerciseId: recommendations.exerciseId,
+      name: exercises.name,
+      unit: exercises.unit,
+      goal: recommendations.goal,
+      target: recommendations.target,
+      rationale: recommendations.rationale,
+      status: recommendations.status,
+      generatedAt: recommendations.generatedAt
+    })
+    .from(recommendations)
+    .innerJoin(exercises, eq(recommendations.exerciseId, exercises.id))
+    .where(
+      and(
+        eq(recommendations.userId, userId),
+        inArray(recommendations.status, ['pending', 'accepted', 'modified'])
+      )
+    )
+    .orderBy(desc(recommendations.generatedAt));
+  const seen = new Set<string>();
+  const out: typeof rows = [];
+  for (const r of rows) {
+    if (seen.has(r.exerciseId)) continue;
+    seen.add(r.exerciseId);
+    out.push(r);
+  }
+  return out;
+}
+
+/**
+ * Persist an Adjust edit: overwrite the target and mark the recommendation
+ * modified. A modified target still pre-fills the workout (see prefill scope).
+ */
+export async function updateRecommendationTarget(
+  userId: string,
+  id: string,
+  target: Record<string, unknown>
+) {
+  await db
+    .update(recommendations)
+    .set({ target, status: 'modified' })
     .where(and(eq(recommendations.id, id), eq(recommendations.userId, userId)));
 }

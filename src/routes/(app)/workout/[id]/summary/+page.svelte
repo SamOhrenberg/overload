@@ -2,9 +2,11 @@
   import { goto } from '$app/navigation';
   import { Trophy } from 'lucide-svelte';
   import ExerciseCard from '$lib/components/ExerciseCard.svelte';
-  import { targetLabel } from '$lib/format';
+  import { targetLabel, zoneLabelsFor } from '$lib/format';
 
   let { data } = $props();
+
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 </script>
 
 <header class="pt-safe pb-4 pt-4">
@@ -13,6 +15,27 @@
     {data.exerciseCount} exercises{data.durationMin != null ? ` · ${data.durationMin} min` : ''}
   </p>
 </header>
+
+{#each data.runs as run}
+  {@const z = zoneLabelsFor(run.name)}
+  <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">{run.name} · this run</h2>
+  <div class="mb-5 grid grid-cols-3 gap-2 text-center">
+    <div class="rounded-lg bg-surface py-3">
+      <div class="num text-h2" style="color: var(--goal-strength)">{mmss(run.zones.walkTotalSec)}</div>
+      <div class="text-micro uppercase tracking-wide text-fg-muted">{z.walk} total</div>
+    </div>
+    <div class="rounded-lg bg-surface py-3">
+      <div class="num text-h2" style="color: var(--success)">{mmss(run.zones.jogHoldSec)}</div>
+      <div class="text-micro uppercase tracking-wide text-fg-muted">{z.jog} hold</div>
+    </div>
+    <div class="rounded-lg bg-surface py-3">
+      <div class="num text-h2" style="color: var(--danger)">
+        {run.zones.sprintReps}×{mmss(run.zones.sprintIntervalSec)}
+      </div>
+      <div class="text-micro uppercase tracking-wide text-fg-muted">{z.sprint}s</div>
+    </div>
+  </div>
+{/each}
 
 {#if data.recommendations.length > 0}
   <h2 class="mb-2 flex items-center gap-2 text-micro uppercase tracking-wide text-fg-muted">
@@ -23,7 +46,7 @@
       <ExerciseCard
         name={r.name}
         goal={r.goal}
-        target={targetLabel(r.target, r.unit)}
+        target={targetLabel(r.target, r.unit, r.name)}
         rationale={r.rationale}
       />
     {/each}
