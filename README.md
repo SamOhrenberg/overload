@@ -38,6 +38,29 @@ docker compose up -d
 The app bootstraps the database, seeds a built-in exercise library, and creates the admin account on
 first boot. Then sign in, open **Me → Invites** to create invite codes for anyone else.
 
+## Hosting the UI on GitHub Pages
+
+The UI is a static client, so it can be hosted on GitHub Pages while the API +
+database stay on your Docker Compose server. On first launch the app asks for
+your API address (you can add a fallback, e.g. LAN IP at home + public URL away;
+the first one that answers is used). Change it later under **Me → Server**.
+
+1. In the repo: **Settings → Pages → Source: GitHub Actions**. Pushing to `main`
+   runs `.github/workflows/pages.yml`, which builds with `npm run build:pages`.
+2. On the server, allow the Pages origin (scheme + host, no path) in `.env` and
+   restart the stack:
+   ```
+   CORS_ALLOWED_ORIGINS=https://<your-user>.github.io
+   AUTH_TOKENS_ENABLED=true
+   ```
+3. Open the Pages site and enter your API URL.
+
+> **HTTPS note:** GitHub Pages is HTTPS, and browsers block an HTTPS page from
+> calling a plain `http://` API. Chrome allows `http://` **LAN IPs** after a
+> "local network access" prompt; Safari/iOS and Firefox do not. For iPhone use,
+> give the API an `https://` address — e.g. a public DNS name for a LAN IP with a
+> Let's Encrypt cert issued via DNS challenge in NGINX Proxy Manager.
+
 ## Tech stack
 
 SvelteKit + TypeScript · PostgreSQL + Drizzle ORM · Tailwind CSS · Argon2id auth with cookie **or**

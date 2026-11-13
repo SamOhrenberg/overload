@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { ChevronLeft, LifeBuoy, Plus } from 'lucide-svelte';
   import TrendChart from '$lib/components/TrendChart.svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
@@ -55,7 +56,7 @@
 </script>
 
 <header class="pt-safe pb-2 pt-4">
-  <a href="/exercises" class="inline-flex items-center gap-1 text-caption text-fg-2">
+  <a href={resolve('/exercises')} class="inline-flex items-center gap-1 text-caption text-fg-2">
     <ChevronLeft size={16} /> Exercises
   </a>
   <div class="mt-1 flex items-center justify-between">
@@ -90,7 +91,7 @@
     {/each}
   </div>
 {:else}
-  <a href="/routines" class="mb-6 flex items-center gap-1 text-caption text-accent">
+  <a href={resolve('/routines')} class="mb-6 flex items-center gap-1 text-caption text-accent">
     <Plus size={14} /> Create a group to organize your routines
   </a>
 {/if}

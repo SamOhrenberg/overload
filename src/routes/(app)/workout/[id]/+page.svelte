@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { ChevronLeft, Trophy } from 'lucide-svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
   import { clock, zoneLabelsFor } from '$lib/format';
@@ -18,7 +19,7 @@
 </script>
 
 <header class="pt-safe pb-3 pt-4">
-  <a href="/history" class="inline-flex items-center gap-1 text-caption text-fg-2">
+  <a href={resolve('/history')} class="inline-flex items-center gap-1 text-caption text-fg-2">
     <ChevronLeft size={16} /> History
   </a>
   <h1 class="mt-1 text-h1 text-fg">{w.title ?? 'Workout'}</h1>

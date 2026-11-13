@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { X, Plus, ChevronLeft, ChevronRight, Check } from 'lucide-svelte';
@@ -145,7 +146,7 @@
     const tracked = entries.some((e) => e.sets.length > 0 || e.bouts.length > 0);
     if (!tracked) {
       await api(`/api/workouts/${workoutId}`, { method: 'DELETE' }).catch(() => {});
-      goto('/');
+      goto(resolve('/'));
       return;
     }
     // Drain any queued sets/bouts first so the end-of-workout recommendation is
@@ -153,7 +154,7 @@
     // while the server was mid-redeploy would otherwise look like "no data").
     await flush();
     await api(`/api/workouts/${workoutId}`, { method: 'PATCH', body: JSON.stringify({}) });
-    goto(`/workout/${workoutId}/summary`);
+    goto(resolve(`/workout/${workoutId}/summary`));
   }
 
   let entry = $derived(entries[current]);

@@ -5,6 +5,7 @@ docs/
 node_modules/
 dist/
 build/
+build-pages/
 .output/
 .svelte-kit/
 .next/

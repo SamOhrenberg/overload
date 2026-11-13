@@ -14,6 +14,9 @@ export function corsHeaders(origin: string): Record<string, string> {
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
+    // Chrome private/local-network preflight: an HTTPS page on the public web
+    // (GitHub Pages) calling this server by its LAN IP.
+    'Access-Control-Allow-Private-Network': 'true',
     Vary: 'Origin'
   };
 }

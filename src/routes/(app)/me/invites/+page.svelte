@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { invalidateAll } from '$app/navigation';
   import { ChevronLeft, Plus, Copy } from 'lucide-svelte';
   import { apiJson, api } from '$lib/client/api';
@@ -26,7 +27,7 @@
 </script>
 
 <header class="pt-safe pb-2 pt-4">
-  <a href="/me" class="inline-flex items-center gap-1 text-caption text-fg-2">
+  <a href={resolve('/me')} class="inline-flex items-center gap-1 text-caption text-fg-2">
     <ChevronLeft size={16} /> Me
   </a>
   <div class="mt-1 flex items-center justify-between">

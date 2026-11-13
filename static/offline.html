@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0D10" />
+    <title>Offline · Overload</title>
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --surface: #171b22;
+        --text: #f4f6f8;
+        --text-2: #aeb6c2;
+        --accent: #b8ff3c;
+        --on-accent: #0b0d10;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f5f7fa;
+          --surface: #ffffff;
+          --text: #0d1117;
+          --text-2: #434c59;
+          --accent: #4e9f00;
+          --on-accent: #ffffff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px 16px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+        text-align: center;
+      }
+      .card { max-width: 360px; padding: 28px 20px; border-radius: 20px; background: var(--surface); }
+      h1 { margin: 0 0 8px; font-size: 1.5rem; }
+      p { margin: 0 0 20px; color: var(--text-2); line-height: 1.4; }
+      button {
+        border: 0; border-radius: 999px; padding: 12px 24px;
+        font: 600 1rem inherit; background: var(--accent); color: var(--on-accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>You're offline</h1>
+      <p>This screen hasn't been saved for offline use yet. Open the app once while connected and it will be available next time.</p>
+      <button onclick="location.reload()">Try again</button>
+    </div>
+  </body>
+</html>

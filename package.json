@@ -12,18 +12,20 @@
     "start": "node build/index.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node build/migrate.js"
+    "db:migrate": "node build/migrate.js",
+    "build:pages": "node scripts/build-pages.mjs"
   },
   "dependencies": {
-    "lucide-svelte": "^0.460.0",
     "@node-rs/argon2": "^2.0.2",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
     "drizzle-orm": "^0.36.4",
+    "lucide-svelte": "^0.460.0",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.2.9",
+    "@sveltejs/adapter-static": "^3.0.11",
     "@sveltejs/kit": "^2.8.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@types/node": "^22.9.0",

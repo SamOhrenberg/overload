@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { ChartColumn, ChevronRight, RefreshCw, Trash2, CloudOff, Check } from 'lucide-svelte';
   import { goto } from '$app/navigation';
@@ -154,7 +155,7 @@
   <p class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Swipe a session to delete</p>
   <div class="space-y-2">
     {#each workouts as w (w.id)}
-      <SwipeRow ondelete={() => remove(w.id)} ontap={() => goto(`/workout/${w.id}`)}>
+      <SwipeRow ondelete={() => remove(w.id)} ontap={() => goto(resolve(`/workout/${w.id}`))}>
         <div class="flex items-center justify-between bg-surface p-4 shadow-e1">
           <div>
             <p class="text-body-strong text-fg">{w.title ?? 'Workout'}</p>

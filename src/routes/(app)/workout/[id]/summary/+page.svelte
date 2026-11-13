@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { goto } from '$app/navigation';
   import { Trophy } from 'lucide-svelte';
   import ExerciseCard from '$lib/components/ExerciseCard.svelte';
@@ -63,7 +64,7 @@
   <div class="mx-auto max-w-xl">
     <button
       class="h-14 w-full rounded-md bg-accent text-body font-bold text-accent-on"
-      onclick={() => goto('/')}>Done</button
+      onclick={() => goto(resolve('/'))}>Done</button
     >
   </div>
 </div>

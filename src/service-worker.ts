@@ -1,21 +1,39 @@
 /// <reference types="@sveltejs/kit" />
-import { build, files, version } from '$service-worker';
+/// <reference lib="webworker" />
+import { base, build, files, version } from '$service-worker';
 
+/**
+ * The UI is a client-side app (served by the API server or as static files on
+ * GitHub Pages), so offline launch only needs the app shell + bundles. Screen
+ * data is cached by the client itself (see $lib/client/load.ts), and API
+ * traffic — usually another origin — is never touched here.
+ */
 const CACHE = `overload-cache-${version}`;
-// The app shell + static assets to precache for offline launch.
+const SHELL = `${base}/`;
+const OFFLINE_PAGE = `${base}/offline.html`;
 const ASSETS = [...build, ...files];
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
 sw.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => sw.skipWaiting()));
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll([...ASSETS, SHELL]))
+      .then(() => sw.skipWaiting())
+  );
 });
 
 sw.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Only this worker's versioned caches; the client's data cache is separate.
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => (k.startsWith('overload-cache-') || k.startsWith('overload-runtime-')) && k !== CACHE).map((k) => caches.delete(k))
+        )
+      )
       .then(() => sw.clients.claim())
   );
 });
@@ -23,20 +41,23 @@ sw.addEventListener('activate', (event) => {
 sw.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
-
   const url = new URL(request.url);
+  if (url.origin !== sw.location.origin) return;
 
-  // Never cache API or auth traffic — always go to the network.
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/healthz')) return;
-
-  // Cache-first for precached assets.
+  // Cache-first for precached, immutable assets.
   if (ASSETS.includes(url.pathname)) {
     event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
     return;
   }
 
-  // Network-first for navigations, falling back to the cached shell offline.
-  event.respondWith(
-    fetch(request).catch(() => caches.match(request).then((c) => c ?? caches.match('/')) as Promise<Response>)
-  );
+  // Page loads: every route is the same app shell. Network first (picks up new
+  // deploys), else the cached shell, else a standalone offline screen.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(
+        async () =>
+          (await caches.match(SHELL)) ?? (await caches.match(OFFLINE_PAGE)) ?? Response.error()
+      )
+    );
+  }
 });

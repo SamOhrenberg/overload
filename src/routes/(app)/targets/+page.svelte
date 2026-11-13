@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { invalidateAll } from '$app/navigation';
   import { Target as TargetIcon } from 'lucide-svelte';
   import ExerciseCard from '$lib/components/ExerciseCard.svelte';
   import AdjustSheet from '$lib/components/AdjustSheet.svelte';
   import { send } from '$lib/client/outbox';
-  import type { TargetRow } from './+page.server';
+  import type { TargetRow } from '$lib/types';
 
   let { data } = $props();
 
@@ -81,7 +82,7 @@
       <p class="text-h2 text-fg">Nothing due yet</p>
       <p class="text-caption text-fg-2">
         Once you’ve trained a grouped exercise at least once, it’ll show up here by how long
-        it’s been. Set up groups in <a href="/routines" class="text-accent underline">Routines</a>.
+        it’s been. Set up groups in <a href={resolve('/routines')} class="text-accent underline">Routines</a>.
       </p>
     </div>
   {/if}

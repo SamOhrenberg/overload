@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell } from 'lucide-svelte';
-  import { api } from '$lib/client/api';
+  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell, Server } from 'lucide-svelte';
+  import { goto } from '$app/navigation';
+  import { api, getEndpoints, setToken } from '$lib/client/api';
+  import { clearDataCache } from '$lib/client/load';
 
   let { data } = $props();
   let theme = $state<'dark' | 'light' | 'auto'>('auto');
@@ -26,9 +29,36 @@
     else root.setAttribute('data-theme', t);
   }
 
+  // '' = same-origin (UI served by the API itself).
+  const endpoints = getEndpoints().map((e) => e || 'This server');
+
   async function logout() {
-    await api('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login';
+    await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    setToken(null);
+    // Drop cached screen data so the next user can't see it offline.
+    await clearDataCache();
+    await goto(resolve('/login'), { invalidateAll: true });
+  }
+
+  // A plain link can't carry the bearer token (or reach a cross-origin API's
+  // cookie), so fetch the export and hand the browser a file.
+  let exporting = $state(false);
+  async function exportData() {
+    exporting = true;
+    try {
+      const res = await api('/api/export');
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'overload-export.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      exporting = false;
+    }
   }
 </script>
 
@@ -64,28 +94,40 @@
 
 <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Training</h2>
 <div class="mb-6 space-y-2">
-  <a href="/routines" class="flex items-center justify-between rounded-lg bg-surface p-4">
+  <a href={resolve('/routines')} class="flex items-center justify-between rounded-lg bg-surface p-4">
     <span class="flex items-center gap-2 text-body text-fg"><CalendarCog size={18} /> Routines</span>
     <ChevronRight size={18} class="text-fg-muted" />
   </a>
-  <a href="/exercises" class="flex items-center justify-between rounded-lg bg-surface p-4">
+  <a href={resolve('/exercises')} class="flex items-center justify-between rounded-lg bg-surface p-4">
     <span class="flex items-center gap-2 text-body text-fg"><Dumbbell size={18} /> Exercises</span>
     <ChevronRight size={18} class="text-fg-muted" />
   </a>
 </div>
 
 <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Data</h2>
-<a
-  href="/api/export"
-  class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4"
+<button
+  class="mb-6 flex w-full items-center justify-between rounded-lg bg-surface p-4 disabled:opacity-60"
+  disabled={exporting}
+  onclick={exportData}
 >
-  <span class="flex items-center gap-2 text-body text-fg"><Download size={18} /> Export my data</span>
+  <span class="flex items-center gap-2 text-body text-fg"
+    ><Download size={18} /> {exporting ? 'Exporting…' : 'Export my data'}</span
+  >
   <ChevronRight size={18} class="text-fg-muted" />
+</button>
+
+<h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Server</h2>
+<a href={resolve('/connect')} class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4">
+  <span class="flex min-w-0 items-center gap-2 text-body text-fg">
+    <Server size={18} class="shrink-0" />
+    <span class="truncate">{endpoints.join(' · ')}</span>
+  </span>
+  <ChevronRight size={18} class="shrink-0 text-fg-muted" />
 </a>
 
 {#if data.user.role === 'admin'}
   <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Admin</h2>
-  <a href="/me/invites" class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4">
+  <a href={resolve('/me/invites')} class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4">
     <span class="text-body text-fg">Invites</span>
     <ChevronRight size={18} class="text-fg-muted" />
   </a>

@@ -1,11 +1,13 @@
 import type { Handle } from '@sveltejs/kit';
+import { building } from '$app/environment';
 import { readSessionCookie, readBearerToken, validateSessionToken } from '$lib/server/auth/session';
 import { bootstrap } from '$lib/server/bootstrap';
 import { allowedOrigin, corsHeaders } from '$lib/server/cors';
 import { env } from '$lib/server/config';
 
 export const handle: Handle = async ({ event, resolve }) => {
-  await bootstrap();
+  // The static (GitHub Pages) build renders its app shell without a database.
+  if (!building) await bootstrap();
 
   const origin = allowedOrigin(event.request.headers.get('origin'));
 

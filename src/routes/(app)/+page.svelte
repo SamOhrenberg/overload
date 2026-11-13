@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { goto, invalidateAll } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { invalidateAll } from '$app/navigation';
   import { Zap, Dumbbell, X, Plus, Check, CalendarCog } from 'lucide-svelte';
   import ExerciseCard from '$lib/components/ExerciseCard.svelte';
   import AdjustSheet from '$lib/components/AdjustSheet.svelte';
   import { groupColorVar } from '$lib/format';
   import { send } from '$lib/client/outbox';
-  import type { TodayCard } from './+page.server';
+  import type { TodayCard } from '$lib/types';
 
   let { data } = $props();
 
@@ -78,7 +79,7 @@
     </p>
   </div>
   <a
-    href="/exercises"
+    href={resolve('/exercises')}
     aria-label="Exercise library"
     class="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-surface text-fg-2 shadow-e1"
   >
@@ -126,7 +127,7 @@
       </button>
     </div>
     {#if data.mode === 'backlog'}
-      <a href="/routines" class="mt-2 block text-caption text-fg-2">
+      <a href={resolve('/routines')} class="mt-2 block text-caption text-fg-2">
         No weekly plan yet — pick today's groups above, or
         <span class="text-accent underline">plan your week</span>.
       </a>
@@ -135,7 +136,7 @@
 {:else}
   <!-- First-run: no groups at all -->
   <a
-    href="/routines"
+    href={resolve('/routines')}
     class="mb-4 flex items-center justify-between rounded-lg border border-dashed border-border-strong bg-surface p-4"
   >
     <span class="flex items-center gap-2">
@@ -185,17 +186,6 @@
   </div>
 {/if}
 
-<div class="fixed inset-x-0 bottom-20 px-safe">
-  <div class="mx-auto max-w-xl">
-    <button
-      class="h-14 w-full rounded-md bg-accent text-body font-bold text-accent-on shadow-e2 active:scale-[.99]"
-      onclick={() => goto('/workout/active')}
-    >
-      Start workout
-    </button>
-  </div>
-</div>
-
 <!-- Group picker: swap/add today's groups (bottom sheet) -->
 {#if pickerOpen}
   <div
@@ -244,7 +234,7 @@
           </button>
         {/each}
       {:else}
-        <a href="/routines" class="block py-6 text-center text-caption text-accent">
+        <a href={resolve('/routines')} class="block py-6 text-center text-caption text-accent">
           Create your first group →
         </a>
       {/if}
