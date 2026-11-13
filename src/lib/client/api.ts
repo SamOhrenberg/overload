@@ -65,7 +65,7 @@ export function setEndpoints(list: string[]) {
   activeBase = undefined;
 }
 
-let activeBase: string | undefined;
+let activeBase: string | null | undefined;
 
 async function probe(base: string, timeoutMs = 2500): Promise<boolean> {
   const ctrl = new AbortController();

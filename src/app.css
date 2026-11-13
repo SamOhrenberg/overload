@@ -2,14 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Optional self-hosted display face for big numbers. Falls back to system if
-   the file isn't present, so the app works without it. */
-@font-face {
-  font-family: 'Hanken Grotesk';
-  src: url('/fonts/hanken-var.woff2') format('woff2');
-  font-weight: 400 700;
-  font-display: swap;
-}
+/* Display numbers fall back to the system UI stack. To ship the designed
+   face, drop a woff2 at /static/fonts/hanken-var.woff2 and add an @font-face
+   for "Hanken Grotesk" here. */
 
 :root {
   /* ----- Background layers (dark, default) ----- */

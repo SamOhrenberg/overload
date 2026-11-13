@@ -4,12 +4,11 @@
  * misconfigured deployment fails loudly and early.
  */
 
+// Read a required var without throwing at import time — validated at startup
+// by assertEnv() instead, so the build (which imports server modules) works
+// without a database present.
 function required(name: string): string {
-  const v = process.env[name];
-  if (!v || v.trim() === '') {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return v;
+  return process.env[name] ?? '';
 }
 
 function optional(name: string, fallback: string): string {
@@ -62,3 +61,13 @@ export const env = {
 };
 
 export type Env = typeof env;
+
+/** Validate required configuration. Called once at startup (see bootstrap). */
+export function assertEnv() {
+  const missing: string[] = [];
+  if (!env.DATABASE_URL) missing.push('DATABASE_URL');
+  if (!env.SESSION_SECRET) missing.push('SESSION_SECRET');
+  if (missing.length) {
+    throw new Error(`Missing required environment variable(s): ${missing.join(', ')}`);
+  }
+}

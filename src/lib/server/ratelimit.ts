@@ -18,7 +18,9 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
 }
 
 // Occasionally evict expired buckets so the map can't grow unbounded.
-setInterval(() => {
+const sweeper = setInterval(() => {
   const now = Date.now();
   for (const [k, b] of buckets) if (now >= b.resetAt) buckets.delete(k);
-}, 60_000).unref?.();
+}, 60_000);
+// Don't keep the process alive just for the sweeper (Node only).
+(sweeper as { unref?: () => void }).unref?.();

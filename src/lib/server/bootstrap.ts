@@ -4,7 +4,7 @@ import { users } from '$lib/server/db/schema';
 import { runMigrations } from '$lib/server/db/migrate';
 import { seedBuiltInExercises } from '$lib/server/db/seed';
 import { hashPassword } from '$lib/server/auth/password';
-import { env } from '$lib/server/config';
+import { env, assertEnv } from '$lib/server/config';
 
 let started: Promise<void> | null = null;
 
@@ -15,6 +15,7 @@ export function bootstrap(): Promise<void> {
 }
 
 async function run() {
+  assertEnv();
   await runMigrations(env.DATABASE_URL);
   await seedBuiltInExercises();
   await ensureAdmin();

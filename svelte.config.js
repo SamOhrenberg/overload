@@ -5,11 +5,7 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
   preprocess: vitePreprocess(),
   kit: {
-    adapter: adapter(),
-    csrf: {
-      // Origin is enforced from the ORIGIN env var in production.
-      checkOrigin: true
-    }
+    adapter: adapter()
   }
 };
 

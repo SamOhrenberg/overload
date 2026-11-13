@@ -217,6 +217,7 @@
       class="max-h-[70vh] overflow-y-auto rounded-t-xl bg-surface p-4 pb-safe"
       role="dialog"
       aria-label="Pick an exercise"
+      tabindex="-1"
       onclick={(e) => e.stopPropagation()}
       onkeydown={() => {}}
     >
