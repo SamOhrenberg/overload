@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import TabBar from '$lib/components/TabBar.svelte';
+  import InstallHint from '$lib/components/InstallHint.svelte';
   let { children } = $props();
 
   // Active Workout is a full-screen takeover — hide the tab bar there.
@@ -13,5 +14,6 @@
   </main>
   {#if !fullscreen}
     <TabBar />
+    <InstallHint />
   {/if}
 </div>
