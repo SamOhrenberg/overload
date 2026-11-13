@@ -1,6 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { verifyPassword } from '$lib/server/auth/password';
@@ -14,7 +13,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request, cookies, getClientAddress }) => {
+  default: async ({ request, cookies, url, getClientAddress }) => {
     if (!rateLimit(`login:${getClientAddress()}`, 10, 60_000)) {
       return fail(429, { error: 'Too many attempts. Wait a minute and try again.' });
     }
@@ -27,7 +26,11 @@ export const actions: Actions = {
       return fail(400, { error: 'Enter your username and password.' });
     }
 
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    // Username match is case-insensitive.
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.username}) = lower(${username})`);
     // Always run a verify to blunt timing/enumeration differences.
     const ok = user ? await verifyPassword(user.passwordHash, password) : false;
     if (!user || !ok) {
@@ -36,7 +39,7 @@ export const actions: Actions = {
 
     const token = generateSessionToken();
     await createSession(token, user.id);
-    setSessionCookie(cookies, token, !dev);
+    setSessionCookie(cookies, token, url.protocol === 'https:');
 
     redirect(303, '/');
   }

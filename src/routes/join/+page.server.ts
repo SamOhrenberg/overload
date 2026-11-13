@@ -1,6 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { hashPassword, validatePasswordStrength } from '$lib/server/auth/password';
@@ -15,7 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request, cookies }) => {
+  default: async ({ request, cookies, url }) => {
     const data = await request.formData();
     const code = String(data.get('code') ?? '').trim();
     const username = String(data.get('username') ?? '').trim();
@@ -36,7 +35,10 @@ export const actions: Actions = {
       return fail(400, { ...values, error: 'That invite code is not valid.' });
     }
 
-    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.username, username));
+    const [taken] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(sql`lower(${users.username}) = lower(${username})`);
     if (taken) return fail(400, { ...values, error: 'That username is taken.' });
 
     // Consume the invite first; if it was raced to exhaustion, stop.
@@ -52,7 +54,7 @@ export const actions: Actions = {
 
     const token = generateSessionToken();
     await createSession(token, user.id);
-    setSessionCookie(cookies, token, !dev);
+    setSessionCookie(cookies, token, url.protocol === 'https:');
 
     redirect(303, '/');
   }
