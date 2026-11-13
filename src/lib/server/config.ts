@@ -2,29 +2,33 @@
  * Central environment configuration. All operational config comes from
  * environment variables (no settings UI). Validated once at startup so a
  * misconfigured deployment fails loudly and early.
+ *
+ * Read via SvelteKit's $env/dynamic/private so values resolve in dev (from
+ * .env) and in production (from the container's real environment) alike.
  */
+import { env as runtimeEnv } from '$env/dynamic/private';
 
 // Read a required var without throwing at import time — validated at startup
 // by assertEnv() instead, so the build (which imports server modules) works
 // without a database present.
 function required(name: string): string {
-  return process.env[name] ?? '';
+  return runtimeEnv[name] ?? '';
 }
 
 function optional(name: string, fallback: string): string {
-  const v = process.env[name];
+  const v = runtimeEnv[name];
   return v && v.trim() !== '' ? v : fallback;
 }
 
 function int(name: string, fallback: number): number {
-  const v = process.env[name];
+  const v = runtimeEnv[name];
   if (!v) return fallback;
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : fallback;
 }
 
 function bool(name: string, fallback: boolean): boolean {
-  const v = process.env[name];
+  const v = runtimeEnv[name];
   if (v === undefined) return fallback;
   return /^(1|true|yes|on)$/i.test(v);
 }
@@ -37,9 +41,9 @@ export const env = {
   TZ: optional('TZ', 'UTC'),
   LOG_LEVEL: optional('LOG_LEVEL', 'info'),
 
-  ADMIN_USERNAME: process.env.ADMIN_USERNAME ?? '',
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? '',
-  ADMIN_EMAIL: process.env.ADMIN_EMAIL ?? '',
+  ADMIN_USERNAME: runtimeEnv.ADMIN_USERNAME ?? '',
+  ADMIN_PASSWORD: runtimeEnv.ADMIN_PASSWORD ?? '',
+  ADMIN_EMAIL: runtimeEnv.ADMIN_EMAIL ?? '',
 
   // UI origins allowed to call the API cross-origin (e.g. a GitHub Pages host).
   CORS_ALLOWED_ORIGINS: optional('CORS_ALLOWED_ORIGINS', '')
@@ -54,10 +58,10 @@ export const env = {
   WEEK_START: optional('WEEK_START', 'monday') as 'monday' | 'sunday',
 
   AI_ENABLED: bool('AI_ENABLED', false),
-  AI_PROVIDER: process.env.AI_PROVIDER ?? '',
-  AI_BASE_URL: process.env.AI_BASE_URL ?? '',
-  AI_API_KEY: process.env.AI_API_KEY ?? '',
-  AI_MODEL: process.env.AI_MODEL ?? ''
+  AI_PROVIDER: runtimeEnv.AI_PROVIDER ?? '',
+  AI_BASE_URL: runtimeEnv.AI_BASE_URL ?? '',
+  AI_API_KEY: runtimeEnv.AI_API_KEY ?? '',
+  AI_MODEL: runtimeEnv.AI_MODEL ?? ''
 };
 
 export type Env = typeof env;
