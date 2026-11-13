@@ -1,6 +1,6 @@
 import { db } from './index';
 import { exercises } from './schema';
-import { sql } from 'drizzle-orm';
+import { isNull } from 'drizzle-orm';
 
 type SeedExercise = {
   name: string;
@@ -54,24 +54,25 @@ export const BUILT_IN: SeedExercise[] = [
 
 /** Insert built-ins that are not already present (idempotent by name). */
 export async function seedBuiltInExercises() {
-  for (const ex of BUILT_IN) {
-    await db
-      .insert(exercises)
-      .values({
-        ownerId: null,
-        name: ex.name,
-        modality: ex.modality,
-        kind: ex.kind,
-        muscleGroups: ex.muscleGroups,
-        unit: ex.unit,
-        loadIncrement: ex.loadIncrement,
-        defaultGoal: ex.defaultGoal
-      })
-      .onConflictDoNothing();
-  }
+  const existing = await db
+    .select({ name: exercises.name })
+    .from(exercises)
+    .where(isNull(exercises.ownerId));
+  const have = new Set(existing.map((e) => e.name));
 
-  const [{ count }] = await db.execute<{ count: string }>(
-    sql`SELECT count(*)::int AS count FROM exercises WHERE owner_id IS NULL`
-  );
-  console.log(`[seed] built-in exercises present: ${count}`);
+  const toInsert = BUILT_IN.filter((ex) => !have.has(ex.name)).map((ex) => ({
+    ownerId: null,
+    name: ex.name,
+    modality: ex.modality,
+    kind: ex.kind,
+    muscleGroups: ex.muscleGroups,
+    unit: ex.unit,
+    loadIncrement: ex.loadIncrement,
+    defaultGoal: ex.defaultGoal
+  }));
+
+  if (toInsert.length) {
+    await db.insert(exercises).values(toInsert).onConflictDoNothing();
+  }
+  console.log(`[seed] built-in exercises: ${have.size + toInsert.length} (${toInsert.length} new)`);
 }
