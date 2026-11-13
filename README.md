@@ -2,38 +2,58 @@
 
 <p align="center">
   <em>Every session, a little more.</em><br>
-  A self-hosted, open-source workout tracker and progression assistant — built as a mobile-first PWA.
+  A self-hosted, open-source workout tracker and progression assistant — a mobile-first PWA.
 </p>
 
 ---
 
 ## What it is
 
-**Overload** is a personal workout log that does more than remember what you did. After each
-session you record exactly what you performed — the lifts, sets, reps, loads, the run, the row,
-the hold — and it tells you what to do **next time** to keep getting stronger, going longer, and
-lasting more. The name is the principle: *progressive overload*, the one mechanism behind building
-strength, endurance, and stamina.
+**Overload** is a personal workout log that does more than remember what you did. After each session
+you record exactly what you performed, and it tells you what to do **next time** to keep getting
+stronger, going longer, and lasting more. The name is the principle: *progressive overload*.
 
-It is designed to be run by you, for you (and anyone you invite), on hardware you control.
+## Features
 
-## Highlights
+- 📱 **Mobile-first PWA** — installs to the iPhone home screen, one-handed between sets, works offline.
+- 🧠 **Progression assistant** — explainable, rule-based recommendations (double progression + RIR for
+  strength/endurance, a 10%-cap model for cardio stamina, plus work-capacity progression) tuned to each
+  exercise's goal.
+- 🏆 **PRs, trends & deloads** — estimated-1RM tracking, stall detection, readiness scaling.
+- 🔐 **Invite-only** — the first admin is created from environment variables; others join with a code.
+- 🐳 **Self-hosted** — one app container + Postgres, drops into your existing Docker Compose.
+- 🌐 **Flexible hosting** — serve the UI from your server, from GitHub Pages, or run it **local-only**
+  with no backend (data stays on the device). Configurable API endpoint with health-probe failover
+  handles split-DNS home networks.
+- ⚙️ **Config via environment variables** — see [`.env.example`](./.env.example).
 
-- 📱 **Mobile-first PWA** — installs to the iPhone home screen, works one-handed between sets, usable offline.
-- 🧠 **Progression assistant** — rule-based, explainable recommendations for your next session, tuned to your goal: strength, endurance, or stamina.
-- 🔐 **Invite-only** — the first admin is created from environment variables; everyone else joins with an invite code.
-- 🐳 **Self-hosted** — a single container that drops into your existing Docker Compose stack, plus a database.
-- ⚙️ **Config via environment variables** — no settings UI to babysit; everything lives in your Compose file.
-- 🆓 **Open source (MIT)** — yours to read, fork, and change.
+## Quick start (Docker Compose)
 
-## Status
+```bash
+cp .env.example .env
+# edit .env: set SESSION_SECRET, DB_PASSWORD, ADMIN_USERNAME, ADMIN_PASSWORD, ORIGIN
+docker compose up -d
+```
 
-🚧 **Planning.** No application code yet — the design is being worked out in the (untracked) `docs/`
-folder before the first line of the app is written.
+The app bootstraps the database, seeds a built-in exercise library, and creates the admin account on
+first boot. Then sign in, open **Me → Invites** to create invite codes for anyone else.
 
-## Documentation
+## Tech stack
 
-Living design notes live in `docs/` (not tracked in git). Start at `docs/README.md`.
+SvelteKit + TypeScript · PostgreSQL + Drizzle ORM · Tailwind CSS · Argon2id auth with cookie **or**
+bearer-token sessions · Workbox service worker + IndexedDB offline outbox.
+
+```
+src/lib/server/engine/   the progression engine (pure, portable functions)
+src/lib/server/services/ data services over the DB
+src/routes/api/          JSON API
+src/routes/(app)/        the installed app screens
+```
+
+## Configuration
+
+Everything operational is an environment variable — no settings UI. See [`.env.example`](./.env.example)
+for the full list (core, database, admin bootstrap, app behavior, cross-origin/CORS, optional AI coach).
 
 ## License
 
