@@ -3,6 +3,7 @@
   import { ChevronLeft, LifeBuoy, Plus } from 'lucide-svelte';
   import TrendChart from '$lib/components/TrendChart.svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
+  import CommentList from '$lib/components/CommentList.svelte';
   import { zoneLabelsFor, groupColorVar } from '$lib/format';
   import { send } from '$lib/client/outbox';
 
@@ -72,6 +73,8 @@
     <p class="text-caption text-warning">{data.stall.suggestion}</p>
   </div>
 {/if}
+
+<CommentList comments={data.comments} />
 
 <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Groups</h2>
 {#if data.groups.length}

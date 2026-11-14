@@ -350,3 +350,75 @@ export const feedback = pgTable(
     userIdx: index('feedback_user_idx').on(t.userId, t.createdAt)
   })
 );
+
+// ---------------------------------------------------------------------------
+// OAuth 2.1 for MCP clients
+// ---------------------------------------------------------------------------
+
+export const oauthClients = pgTable('oauth_clients', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  redirectUris: text('redirect_uris').array().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const oauthCodes = pgTable('oauth_codes', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  scope: text('scope').notNull(),
+  resource: text('resource'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull()
+});
+
+export const oauthTokens = pgTable(
+  'oauth_tokens',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').$type<'access' | 'refresh'>().notNull(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    scope: text('scope').notNull(),
+    resource: text('resource'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => ({
+    userIdx: index('oauth_tokens_user_idx').on(t.userId, t.clientId)
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Comments on a user's data (left by MCP clients, e.g. an AI coach)
+// ---------------------------------------------------------------------------
+
+export type CommentTarget = 'workout' | 'exercise' | 'set' | 'general';
+
+export const comments = pgTable(
+  'comments',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').$type<CommentTarget>().notNull(),
+    targetId: uuid('target_id'),
+    body: text('body').notNull(),
+    author: text('author').notNull(),
+    clientId: text('client_id').references(() => oauthClients.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => ({
+    targetIdx: index('comments_target_idx').on(t.userId, t.targetType, t.targetId)
+  })
+);

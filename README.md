@@ -61,6 +61,27 @@ the first one that answers is used). Change it later under **Me → Server**.
 > give the API an `https://` address — e.g. a public DNS name for a LAN IP with a
 > Let's Encrypt cert issued via DNS challenge in NGINX Proxy Manager.
 
+## Connect Claude (MCP)
+
+The server exposes an [MCP](https://modelcontextprotocol.io) endpoint at **`https://<your-server>/mcp`**
+so an AI assistant can read your training data and leave comments you'll see in the app.
+
+1. In Claude: **Settings → Connectors → Add custom connector**, paste the URL (also shown under
+   **Me → Connected apps**). Claude Code: `claude mcp add --transport http overload https://<your-server>/mcp`.
+2. You'll be sent to an Overload sign-in/consent page. Approve, and you're connected.
+
+Auth is OAuth 2.1 (dynamic client registration + PKCE), served by the app itself — nothing to
+configure. Permissions: `read` (all your data) and `comment` (add/remove comments). OAuth tokens only
+work on `/mcp`, never the app API. Disconnect any client from **Me → Connected apps**.
+
+Tools: `get_profile`, `list_workouts`, `get_workout`, `list_exercises`, `get_exercise_history`,
+`get_personal_records`, `get_recommendations`, `get_routines`, `export_all_data`, `list_comments`,
+`add_comment`, `delete_comment`. Comments appear on the workout / exercise screens (set comments on
+their workout), and general notes under **Me**.
+
+> The server must be reachable from the client over **HTTPS** — for Claude.ai that means publicly
+> reachable, since Anthropic's servers make the connection. `ORIGIN` must match the public URL.
+
 ## Tech stack
 
 SvelteKit + TypeScript · PostgreSQL + Drizzle ORM · Tailwind CSS · Argon2id auth with cookie **or**

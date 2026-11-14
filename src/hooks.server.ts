@@ -4,10 +4,39 @@ import { readSessionCookie, readBearerToken, validateSessionToken } from '$lib/s
 import { bootstrap } from '$lib/server/bootstrap';
 import { allowedOrigin, corsHeaders } from '$lib/server/cors';
 import { env } from '$lib/server/config';
+import { OPEN_CORS, isOpenCorsPath } from '$lib/server/oauthHttp';
+
+const FORM_TYPES = ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'];
+
+function isCrossSiteFormPost(request: Request, url: URL): boolean {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return false;
+  const type = (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  if (!FORM_TYPES.includes(type)) return false;
+  return request.headers.get('origin') !== url.origin;
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
   // The static (GitHub Pages) build renders its app shell without a database.
   if (!building) await bootstrap();
+
+  // CSRF: cross-site form posts are refused (SvelteKit's checkOrigin, moved here
+  // so the OAuth endpoints below can be exempt — see svelte.config.js).
+  if (isCrossSiteFormPost(event.request, event.url) && !isOpenCorsPath(event.url.pathname)) {
+    return new Response('Cross-site POST form submissions are forbidden', { status: 403 });
+  }
+
+  // OAuth + MCP endpoints authenticate by bearer token only (never cookies), so
+  // any origin may call them — browser-based MCP clients need this.
+  if (isOpenCorsPath(event.url.pathname)) {
+    if (event.request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: OPEN_CORS });
+    }
+    event.locals.user = null;
+    event.locals.sessionId = null;
+    const response = await resolve(event);
+    for (const [k, v] of Object.entries(OPEN_CORS)) response.headers.set(k, v);
+    return response;
+  }
 
   const origin = allowedOrigin(event.request.headers.get('origin'));
 

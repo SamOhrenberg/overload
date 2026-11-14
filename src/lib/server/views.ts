@@ -29,6 +29,7 @@ import {
 import { listExercises } from '$lib/server/services/exercises';
 import { listWorkouts, getWorkoutDetail } from '$lib/server/services/workouts';
 import { getActiveGoal } from '$lib/server/services/goals';
+import { commentsForWorkout, listComments } from '$lib/server/services/comments';
 import { detectStall } from '$lib/server/engine/stall';
 import { targetLabel, todayStr } from '$lib/format';
 import type { TodayCard, TargetRow } from '$lib/types';
@@ -142,11 +143,12 @@ export async function exerciseDetailView(user: SessionUser, id: string) {
   const [exercise] = await db.select().from(exercises).where(eq(exercises.id, id));
   if (!exercise) throw error(404, 'Exercise not found');
 
-  const [points, goal, groups, memberOf] = await Promise.all([
+  const [points, goal, groups, memberOf, comments] = await Promise.all([
     exerciseHistory(user.id, id, 30),
     getActiveGoal(user.id, id),
     listGroups(user.id),
-    getExerciseGroupIds(user.id, id)
+    getExerciseGroupIds(user.id, id),
+    listComments(user.id, { targetType: 'exercise', targetId: id, limit: 50 })
   ]);
 
   const series = [...points]
@@ -166,7 +168,8 @@ export async function exerciseDetailView(user: SessionUser, id: string) {
     points,
     stall: detectStall(series),
     groups: groups.map((g) => ({ id: g.id, name: g.name, color: g.color })),
-    memberOf
+    memberOf,
+    comments
   };
 }
 
@@ -277,7 +280,8 @@ export async function workoutView(user: SessionUser, id: string) {
     0
   );
 
-  return { workout, durationMin: durationMin(workout), totalSets };
+  const comments = await commentsForWorkout(user.id, id);
+  return { workout, durationMin: durationMin(workout), totalSets, comments };
 }
 
 export async function workoutSummaryView(user: SessionUser, id: string) {

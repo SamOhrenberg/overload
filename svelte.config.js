@@ -19,7 +19,11 @@ const config = {
       ? // SPA: every unknown path serves the app shell (GitHub Pages uses 404.html).
         adapterStatic({ pages: 'build-pages', assets: 'build-pages', fallback: '404.html' })
       : adapterNode(),
-    paths: { base: pages ? process.env.BASE_PATH ?? '' : '' }
+    paths: { base: pages ? process.env.BASE_PATH ?? '' : '' },
+    // The same check is applied in hooks.server.ts, minus the OAuth token /
+    // revoke endpoints, which MCP clients call server-to-server with a
+    // form-encoded body and no Origin header (they're bearer/PKCE-protected).
+    csrf: { checkOrigin: false }
   }
 };
 

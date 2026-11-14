@@ -1,15 +1,59 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell, Server, MessageSquare } from 'lucide-svelte';
+  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell, Server, MessageSquare, Plug, Copy, Check } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { api, getEndpoints, setToken } from '$lib/client/api';
   import { clearDataCache } from '$lib/client/load';
+  import CommentList from '$lib/components/CommentList.svelte';
 
   let { data } = $props();
   let theme = $state<'dark' | 'light' | 'auto'>('auto');
 
+  // MCP: apps (e.g. Claude) connected over OAuth, and their general notes.
+  type Connection = { clientId: string; name: string; scopes: string[]; lastAuthorized: string };
+  let mcpUrl = $state<string | null>(null);
+  let connections = $state<Connection[]>([]);
+  let notes = $state<
+    { id: string; targetType: string; targetId: string | null; body: string; author: string; createdAt: string }[]
+  >([]);
+  let copied = $state(false);
+
+  async function loadConnections() {
+    try {
+      const [c, n] = await Promise.all([
+        api('/api/connections').then((r) => (r.ok ? r.json() : null)),
+        api('/api/comments?targetType=general&limit=20').then((r) => (r.ok ? r.json() : []))
+      ]);
+      if (c) {
+        mcpUrl = c.mcpUrl;
+        connections = c.connections;
+      }
+      notes = n;
+    } catch {
+      /* offline — section stays hidden */
+    }
+  }
+
+  async function disconnect(c: Connection) {
+    if (!confirm(`Disconnect ${c.name}? It will lose access until you authorize it again.`)) return;
+    const res = await api(`/api/connections/${encodeURIComponent(c.clientId)}`, { method: 'DELETE' }).catch(() => null);
+    if (res?.ok) connections = connections.filter((x) => x.clientId !== c.clientId);
+  }
+
+  async function copyMcpUrl() {
+    if (!mcpUrl) return;
+    try {
+      await navigator.clipboard.writeText(mcpUrl);
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    } catch {
+      /* clipboard blocked — the URL is visible to copy by hand */
+    }
+  }
+
   onMount(() => {
+    void loadConnections();
     try {
       theme = (localStorage.getItem('overload.theme') as typeof theme) ?? 'auto';
     } catch {
@@ -115,6 +159,38 @@
   >
   <ChevronRight size={18} class="text-fg-muted" />
 </button>
+
+{#if mcpUrl}
+  <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Connected apps</h2>
+  <div class="mb-6 space-y-3 rounded-lg bg-surface p-4">
+    <p class="flex items-start gap-2 text-caption text-fg-2">
+      <Plug size={16} class="mt-0.5 shrink-0" />
+      <span>Add this MCP server URL in Claude (or another MCP client) to let it read your training data
+        and leave comments. You'll sign in to approve it.</span>
+    </p>
+    <button
+      class="flex w-full items-center justify-between gap-2 rounded-sm bg-surface-2 px-3 py-2 text-left"
+      onclick={copyMcpUrl}
+    >
+      <span class="min-w-0 truncate font-mono text-caption text-fg">{mcpUrl}</span>
+      {#if copied}<Check size={16} class="shrink-0 text-success" />{:else}<Copy size={16} class="shrink-0 text-fg-muted" />{/if}
+    </button>
+    {#each connections as c (c.clientId)}
+      <div class="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <div class="min-w-0">
+          <p class="truncate text-body text-fg">{c.name}</p>
+          <p class="text-caption text-fg-muted">
+            {c.scopes.join(' · ')} · since {new Date(c.lastAuthorized).toLocaleDateString()}
+          </p>
+        </div>
+        <button class="shrink-0 text-caption font-semibold text-danger" onclick={() => disconnect(c)}>
+          Disconnect
+        </button>
+      </div>
+    {/each}
+  </div>
+  <CommentList comments={notes} title="Notes from connected apps" />
+{/if}
 
 <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Help</h2>
 <a href={resolve('/feedback')} class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4">

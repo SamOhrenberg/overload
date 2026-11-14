@@ -2,10 +2,20 @@
   import { resolve } from '$app/paths';
   import { ChevronLeft, Trophy } from 'lucide-svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
+  import CommentList from '$lib/components/CommentList.svelte';
   import { clock, zoneLabelsFor } from '$lib/format';
 
   let { data } = $props();
   const w = $derived(data.workout);
+
+  // setId -> "Bench Press · Set 2" so set comments show what they refer to.
+  const setLabels = $derived(
+    new Map(
+      w.entries.flatMap((e) =>
+        e.sets.map((s, i) => [s.id, `${e.name} · ${s.isWarmup ? 'Warmup' : `Set ${i + 1}`}`] as const)
+      )
+    )
+  );
 
   const fmtDate = (d: string | Date) =>
     new Date(d).toLocaleDateString(undefined, {
@@ -36,6 +46,11 @@
 {#if w.notes}
   <p class="mb-4 rounded-lg bg-surface p-3 text-caption text-fg-2">{w.notes}</p>
 {/if}
+
+<CommentList
+  comments={data.comments}
+  contextFor={(c) => (c.targetType === 'set' ? (setLabels.get(c.targetId ?? '') ?? 'Set') : null)}
+/>
 
 {#if w.entries.length === 0}
   <div class="flex flex-col items-center gap-3 py-16 text-center">
