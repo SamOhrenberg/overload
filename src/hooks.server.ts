@@ -12,7 +12,18 @@ function isCrossSiteFormPost(request: Request, url: URL): boolean {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return false;
   const type = (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
   if (!FORM_TYPES.includes(type)) return false;
-  return request.headers.get('origin') !== url.origin;
+  const origin = request.headers.get('origin');
+  if (origin === url.origin) return false;
+  // Also accept the host the request actually arrived on (e.g. reached by LAN
+  // IP while ORIGIN is the public URL). A browser never lets a foreign page
+  // forge Origin, so this is still same-site.
+  try {
+    const host = request.headers.get('host');
+    if (origin && host && new URL(origin).host === host) return false;
+  } catch {
+    /* malformed Origin → treat as cross-site */
+  }
+  return true;
 }
 
 export const handle: Handle = async ({ event, resolve }) => {

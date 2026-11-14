@@ -51,7 +51,9 @@ const SECURITY_HEADERS = {
   'Cache-Control': 'no-store',
   'X-Frame-Options': 'DENY',
   'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
-  'Referrer-Policy': 'no-referrer'
+  // Not 'no-referrer': that makes browsers send `Origin: null` on the consent
+  // form's POST, which the CSRF check (hooks.server.ts) then rejects.
+  'Referrer-Policy': 'same-origin'
 };
 
 function page(title: string, body: string, status = 200) {
