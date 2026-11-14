@@ -206,7 +206,9 @@
         </span>
 
         <!-- Hold progress: a ring that fills while the button is held -->
-        <svg class="pointer-events-none absolute -inset-1.5 -rotate-90" viewBox="0 0 72 72" aria-hidden="true">
+        <svg class="pointer-events-none absolute -rotate-90"
+          style="left:-6px;top:-6px;width:72px;height:72px"
+          viewBox="0 0 72 72" aria-hidden="true">
           <circle
             class="hold-ring {pressing ? 'filling' : ''}"
             cx="36"
