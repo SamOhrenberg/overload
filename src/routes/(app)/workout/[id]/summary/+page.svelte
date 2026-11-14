@@ -60,7 +60,11 @@
   </div>
 {/if}
 
-<div class="fixed inset-x-0 bottom-20 px-safe">
+<!-- Spacer so the last of the content can scroll clear of the fixed button. -->
+<div class="h-20" aria-hidden="true"></div>
+
+<!-- Sits above the tab bar's raised + button (60px, lifted 24px) plus the safe area. -->
+<div class="fixed inset-x-0 z-30 px-safe" style="bottom: calc(env(safe-area-inset-bottom) + 104px)">
   <div class="mx-auto max-w-xl">
     <button
       class="h-14 w-full rounded-md bg-accent text-body font-bold text-accent-on"

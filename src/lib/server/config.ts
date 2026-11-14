@@ -57,6 +57,15 @@ export const env = {
   REST_TIMER_DEFAULT_SEC: int('REST_TIMER_DEFAULT_SEC', 120),
   WEEK_START: optional('WEEK_START', 'monday') as 'monday' | 'sunday',
 
+  // In-app feedback → GitHub issues. Both must be set or feedback is stored
+  // locally only. Token needs Issues read/write on the repo (fine-grained PAT).
+  GITHUB_FEEDBACK_REPO: runtimeEnv.GITHUB_FEEDBACK_REPO ?? '', // "owner/name"
+  GITHUB_FEEDBACK_TOKEN: runtimeEnv.GITHUB_FEEDBACK_TOKEN ?? '',
+  GITHUB_FEEDBACK_LABELS: optional('GITHUB_FEEDBACK_LABELS', 'feedback')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+
   AI_ENABLED: bool('AI_ENABLED', false),
   AI_PROVIDER: runtimeEnv.AI_PROVIDER ?? '',
   AI_BASE_URL: runtimeEnv.AI_BASE_URL ?? '',

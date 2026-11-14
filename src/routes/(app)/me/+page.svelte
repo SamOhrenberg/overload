@@ -1,7 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell, Server } from 'lucide-svelte';
+  import { ChevronRight, Download, LogOut, CalendarCog, Dumbbell, Server, MessageSquare } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { api, getEndpoints, setToken } from '$lib/client/api';
   import { clearDataCache } from '$lib/client/load';
@@ -115,6 +115,12 @@
   >
   <ChevronRight size={18} class="text-fg-muted" />
 </button>
+
+<h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Help</h2>
+<a href={resolve('/feedback')} class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4">
+  <span class="flex items-center gap-2 text-body text-fg"><MessageSquare size={18} /> Feedback</span>
+  <ChevronRight size={18} class="text-fg-muted" />
+</a>
 
 <h2 class="mb-2 text-micro uppercase tracking-wide text-fg-muted">Server</h2>
 <a href={resolve('/connect')} class="mb-6 flex items-center justify-between rounded-lg bg-surface p-4">

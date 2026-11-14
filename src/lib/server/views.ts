@@ -114,6 +114,14 @@ export async function todayView(user: SessionUser) {
     }));
   }
 
+  // Exercises with a baseline (a target to hit) first, then ones still needing
+  // a baseline; alphabetical within each.
+  cards.sort(
+    (a, b) =>
+      Number(b.rawTarget != null) - Number(a.rawTarget != null) ||
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+
   return {
     cards,
     activeGroups: groups,

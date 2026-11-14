@@ -325,3 +325,28 @@ export const personalRecords = pgTable('personal_records', {
   sourceSetId: uuid('source_set_id'),
   achievedAt: timestamp('achieved_at', { withTimezone: true }).notNull().defaultNow()
 });
+
+// ---------------------------------------------------------------------------
+// Feedback (mirrored to GitHub issues)
+// ---------------------------------------------------------------------------
+
+export type FeedbackKind = 'bug' | 'idea' | 'other';
+
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<FeedbackKind>().notNull().default('other'),
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    githubIssueNumber: integer('github_issue_number'),
+    githubIssueUrl: text('github_issue_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => ({
+    userIdx: index('feedback_user_idx').on(t.userId, t.createdAt)
+  })
+);
