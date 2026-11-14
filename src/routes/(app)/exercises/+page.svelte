@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Search, ChevronRight } from 'lucide-svelte';
+  import { resolve } from '$app/paths';
+  import { Search, ChevronRight, Plus } from 'lucide-svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
 
   let { data } = $props();
@@ -17,8 +18,14 @@
   );
 </script>
 
-<header class="pt-safe pb-2 pt-4">
+<header class="pt-safe flex items-center justify-between pb-2 pt-4">
   <h1 class="text-h1 text-fg">Exercises</h1>
+  <a
+    href={resolve('/exercises/new')}
+    class="inline-flex items-center gap-1 rounded-full bg-accent-soft px-3 py-1.5 text-caption font-semibold text-accent"
+  >
+    <Plus size={16} /> New
+  </a>
 </header>
 
 <div class="mb-3 flex items-center gap-2 rounded-md bg-surface-2 px-3">

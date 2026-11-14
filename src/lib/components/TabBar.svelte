@@ -12,7 +12,9 @@
     Dumbbell,
     CalendarCog,
     MessageSquare,
-    Play
+    Play,
+    CirclePlus,
+    Ellipsis
   } from 'lucide-svelte';
 
   const tabs = [
@@ -28,6 +30,7 @@
   const quick = [
     { href: '/workout/active' as const, label: 'Start workout', icon: Play },
     { href: '/routines' as const, label: 'Routines', icon: CalendarCog },
+    { href: '/exercises/new' as const, label: 'New exercise', icon: CirclePlus },
     { href: '/exercises' as const, label: 'Exercises', icon: Dumbbell },
     { href: '/feedback' as const, label: 'Feedback', icon: MessageSquare }
   ];
@@ -43,6 +46,33 @@
   let held = false;
   let startX = 0;
   let startY = 0;
+  // True while a press is in progress: drives the ring that fills up to HOLD_MS.
+  let pressing = $state(false);
+
+  // One-time "Hold for more" hint, until the user has opened the menu once.
+  const LS_HINT = 'overload.fabHintSeen';
+  let showHint = $state(false);
+  $effect(() => {
+    try {
+      if (localStorage.getItem(LS_HINT)) return;
+    } catch {
+      return;
+    }
+    const show = setTimeout(() => (showHint = true), 800);
+    const hide = setTimeout(() => (showHint = false), 8000);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+    };
+  });
+  function hintSeen() {
+    showHint = false;
+    try {
+      localStorage.setItem(LS_HINT, '1');
+    } catch {
+      /* blocked storage — the hint just shows again next launch */
+    }
+  }
 
   function pressStart(e: PointerEvent) {
     if (e.button !== 0) return;
@@ -50,19 +80,23 @@
     startX = e.clientX;
     startY = e.clientY;
     clearTimeout(holdTimer);
+    pressing = !menuOpen;
     holdTimer = setTimeout(() => {
       held = true;
+      pressing = false;
       menuOpen = true;
+      hintSeen();
       navigator.vibrate?.(12);
     }, HOLD_MS);
   }
   function pressMove(e: PointerEvent) {
     if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE || Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
-      clearTimeout(holdTimer);
+      pressEnd();
     }
   }
   function pressEnd() {
     clearTimeout(holdTimer);
+    pressing = false;
   }
   function onFabClick(e: MouseEvent) {
     // The click that follows a long-press must not also navigate.
@@ -142,13 +176,22 @@
 
     <!-- Center raised FAB: tap starts a workout, press-and-hold opens the quick menu -->
     <div class="relative z-50 flex w-16 items-start justify-center">
+      {#if showHint && !menuOpen}
+        <div
+          class="pointer-events-none absolute bottom-full mb-8 whitespace-nowrap rounded-md bg-surface-3 px-3 py-1.5 text-caption font-semibold text-fg shadow-e2"
+          transition:fade={{ duration: 160 }}
+        >
+          Hold for more
+          <span class="absolute left-1/2 top-full -ml-1.5 h-0 w-0 border-x-[6px] border-t-[6px] border-x-transparent border-t-surface-3"></span>
+        </div>
+      {/if}
       <a
         href={resolve('/workout/active')}
         aria-label="Start workout (press and hold for more)"
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         draggable="false"
-        class="fab -mt-6 flex items-center justify-center rounded-full bg-accent text-accent-on shadow-e2 transition-transform duration-fast active:scale-95"
+        class="fab relative -mt-6 flex items-center justify-center rounded-full bg-accent text-accent-on shadow-e2 transition-transform duration-fast active:scale-95"
         style="height:60px;width:60px"
         onpointerdown={pressStart}
         onpointermove={pressMove}
@@ -161,6 +204,32 @@
         <span class="transition-transform duration-med {menuOpen ? 'rotate-45' : ''}">
           <Plus size={30} strokeWidth={2.5} />
         </span>
+
+        <!-- Hold progress: a ring that fills while the button is held -->
+        <svg class="pointer-events-none absolute -inset-1.5 -rotate-90" viewBox="0 0 72 72" aria-hidden="true">
+          <circle
+            class="hold-ring {pressing ? 'filling' : ''}"
+            cx="36"
+            cy="36"
+            r="34"
+            fill="none"
+            stroke="var(--text)"
+            stroke-width="3"
+            stroke-linecap="round"
+            style="--hold-ms:{HOLD_MS}ms"
+          />
+        </svg>
+
+        <!-- "More inside" badge: tells you there's a hold menu -->
+        {#if !menuOpen}
+          <span
+            class="pointer-events-none absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-fg text-surface"
+            transition:fade={{ duration: 100 }}
+            aria-hidden="true"
+          >
+            <Ellipsis size={12} strokeWidth={3} />
+          </span>
+        {/if}
       </a>
     </div>
 
@@ -185,5 +254,27 @@
     -webkit-user-select: none;
     user-select: none;
     touch-action: manipulation;
+  }
+
+  /* Circumference of r=34 is ~214. Empty by default, drains instantly on release. */
+  .hold-ring {
+    stroke-dasharray: 214;
+    stroke-dashoffset: 214;
+    opacity: 0;
+    transition:
+      stroke-dashoffset 120ms ease-out,
+      opacity 120ms ease-out;
+  }
+  .hold-ring.filling {
+    stroke-dashoffset: 0;
+    opacity: 1;
+    transition:
+      stroke-dashoffset var(--hold-ms) linear,
+      opacity 80ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hold-ring.filling {
+      transition: opacity 80ms ease-out;
+    }
   }
 </style>
