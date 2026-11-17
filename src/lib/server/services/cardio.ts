@@ -16,6 +16,12 @@ export type CardioInput = {
 };
 
 export async function logCardioBout(input: CardioInput) {
+  const [row] = await db.insert(cardioBouts).values(cardioRow(input)).returning();
+  return row;
+}
+
+/** Normalize a cardio input into a cardio_bouts row (derives duration/pace). */
+export function cardioRow(input: CardioInput): typeof cardioBouts.$inferInsert {
   const segments = input.segments?.length ? input.segments : null;
 
   // A zoned run's total time is the sum of its segments when not given directly.
@@ -30,21 +36,17 @@ export async function logCardioBout(input: CardioInput) {
     avgPaceSec = Math.round(durationSec / input.distance);
   }
 
-  const [row] = await db
-    .insert(cardioBouts)
-    .values({
-      workoutExerciseId: input.workoutExerciseId,
-      durationSec,
-      distance: input.distance != null ? String(input.distance) : null,
-      avgPaceSec,
-      avgHr: input.avgHr ?? null,
-      maxHr: input.maxHr ?? null,
-      intervals: input.intervals ?? null,
-      segments,
-      perceived: input.perceived ?? null
-    })
-    .returning();
-  return row;
+  return {
+    workoutExerciseId: input.workoutExerciseId,
+    durationSec,
+    distance: input.distance != null ? String(input.distance) : null,
+    avgPaceSec,
+    avgHr: input.avgHr ?? null,
+    maxHr: input.maxHr ?? null,
+    intervals: input.intervals ?? null,
+    segments,
+    perceived: input.perceived ?? null
+  };
 }
 
 /**

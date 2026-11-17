@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
-  import { ChevronLeft, LifeBuoy, Plus } from 'lucide-svelte';
+  import { ChevronLeft, LifeBuoy, Plus, Pencil } from 'lucide-svelte';
   import TrendChart from '$lib/components/TrendChart.svelte';
   import GoalChip from '$lib/components/GoalChip.svelte';
   import CommentList from '$lib/components/CommentList.svelte';
@@ -60,9 +60,18 @@
   <a href={resolve('/exercises')} class="inline-flex items-center gap-1 text-caption text-fg-2">
     <ChevronLeft size={16} /> Exercises
   </a>
-  <div class="mt-1 flex items-center justify-between">
+  <div class="mt-1 flex items-center justify-between gap-2">
     <h1 class="text-h1 text-fg">{data.exercise.name}</h1>
-    <GoalChip goal={data.goal} />
+    <div class="flex shrink-0 items-center gap-2">
+      <GoalChip goal={data.goal} />
+      <a
+        href={resolve(`/exercises/${data.exercise.id}/edit`)}
+        class="inline-flex items-center gap-1 rounded-full bg-surface-3 px-3 py-1.5 text-caption font-semibold text-fg-2"
+        aria-label="Edit exercise"
+      >
+        <Pencil size={14} /> Edit
+      </a>
+    </div>
   </div>
   <p class="text-caption text-fg-muted capitalize">{data.exercise.modality} · {data.exercise.unit}</p>
 </header>

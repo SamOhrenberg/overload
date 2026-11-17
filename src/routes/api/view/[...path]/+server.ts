@@ -4,6 +4,7 @@ import {
   todayView,
   exercisesView,
   exerciseDetailView,
+  exerciseEditView,
   historyView,
   routinesView,
   targetsView,
@@ -14,7 +15,7 @@ import type { RequestHandler } from './$types';
 
 /**
  * Screen view-models for the static UI, one per page:
- *   /api/view/today, /exercises, /exercises/:id, /history, /routines,
+ *   /api/view/today, /exercises, /exercises/:id, /exercises/:id/edit, /history, /routines,
  *   /targets, /workouts/:id, /workouts/:id/summary
  */
 export const GET: RequestHandler = async ({ locals, params }) => {
@@ -30,6 +31,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
     if (a === 'targets') return json(await targetsView(user));
   }
   if (seg.length === 2 && a === 'exercises') return json(await exerciseDetailView(user, b));
+  if (seg.length === 3 && a === 'exercises' && c === 'edit') return json(await exerciseEditView(user, b));
   if (seg.length === 2 && a === 'workouts') return json(await workoutView(user, b));
   if (seg.length === 3 && a === 'workouts' && c === 'summary') {
     return json(await workoutSummaryView(user, b));

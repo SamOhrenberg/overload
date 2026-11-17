@@ -1,19 +1,36 @@
 import { json, error } from '@sveltejs/kit';
-import { requireUser } from '$lib/server/http';
-import { getActiveGoal, setGoal } from '$lib/server/services/goals';
+import { parseBody, requireUser } from '$lib/server/http';
+import { clearGoal, getActiveGoal, setGoal } from '$lib/server/services/goals';
+import { getVisibleExercise } from '$lib/server/services/exercises';
+import { readGoal } from '$lib/server/services/exerciseInput';
+import { generateForExercise } from '$lib/server/services/recommendations';
 import type { RequestHandler } from './$types';
+
+async function visible(userId: string, id: string) {
+  if (!(await getVisibleExercise(userId, id))) throw error(404, 'Exercise not found');
+}
 
 export const GET: RequestHandler = async ({ locals, params }) => {
   const user = requireUser(locals);
+  await visible(user.id, params.id);
   return json(await getActiveGoal(user.id, params.id));
 };
 
+/** Set your goal for an exercise; the next-session target is recomputed. */
 export const PUT: RequestHandler = async ({ locals, params, request }) => {
   const user = requireUser(locals);
-  const body = await request.json().catch(() => ({}));
-  if (!['strength', 'endurance', 'stamina'].includes(body.goal)) {
-    throw error(400, 'goal must be strength, endurance, or stamina');
-  }
-  const row = await setGoal(user.id, params.id, body.goal, body);
+  await visible(user.id, params.id);
+  const { goal, opts } = await parseBody(request, (r) => readGoal(r));
+  const row = await setGoal(user.id, params.id, goal, opts);
+  await generateForExercise(user.id, params.id);
   return json(row);
+};
+
+/** Drop your goal so the exercise's default applies again. */
+export const DELETE: RequestHandler = async ({ locals, params }) => {
+  const user = requireUser(locals);
+  await visible(user.id, params.id);
+  await clearGoal(user.id, params.id);
+  await generateForExercise(user.id, params.id);
+  return json({ ok: true });
 };

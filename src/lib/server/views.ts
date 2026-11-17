@@ -4,7 +4,7 @@
  * anywhere (home server or GitHub Pages) — see docs/09-deployment-and-client.md.
  */
 import { error } from '@sveltejs/kit';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { exercises } from '$lib/server/db/schema';
 import type { SessionUser } from '$lib/server/auth/session';
@@ -26,7 +26,7 @@ import {
   lastPerformedByExercise,
   lastSummaryForExercises
 } from '$lib/server/services/history';
-import { listExercises } from '$lib/server/services/exercises';
+import { listExercises, getVisibleExercise, hasHistory } from '$lib/server/services/exercises';
 import { listWorkouts, getWorkoutDetail } from '$lib/server/services/workouts';
 import { getActiveGoal } from '$lib/server/services/goals';
 import { commentsForWorkout, listComments } from '$lib/server/services/comments';
@@ -136,11 +136,19 @@ export async function todayView(user: SessionUser) {
 }
 
 export async function exercisesView(user: SessionUser) {
-  return { exercises: await listExercises(user.id) };
+  const [list, archived] = await Promise.all([
+    listExercises(user.id),
+    db
+      .select({ id: exercises.id, name: exercises.name })
+      .from(exercises)
+      .where(and(eq(exercises.ownerId, user.id), eq(exercises.isArchived, true)))
+      .orderBy(exercises.name)
+  ]);
+  return { exercises: list, archived };
 }
 
 export async function exerciseDetailView(user: SessionUser, id: string) {
-  const [exercise] = await db.select().from(exercises).where(eq(exercises.id, id));
+  const exercise = await getVisibleExercise(user.id, id);
   if (!exercise) throw error(404, 'Exercise not found');
 
   const [points, goal, groups, memberOf, comments] = await Promise.all([
@@ -162,7 +170,8 @@ export async function exerciseDetailView(user: SessionUser, id: string) {
       name: exercise.name,
       unit: exercise.unit,
       modality: exercise.modality,
-      tracksSpeedZones: exercise.tracksSpeedZones
+      tracksSpeedZones: exercise.tracksSpeedZones,
+      custom: exercise.ownerId != null
     },
     goal: goal?.goal ?? exercise.defaultGoal ?? 'strength',
     points,
@@ -170,6 +179,40 @@ export async function exerciseDetailView(user: SessionUser, id: string) {
     groups: groups.map((g) => ({ id: g.id, name: g.name, color: g.color })),
     memberOf,
     comments
+  };
+}
+
+/** Everything the edit screen needs: the exercise's own fields and the user's goal. */
+export async function exerciseEditView(user: SessionUser, id: string) {
+  const exercise = await getVisibleExercise(user.id, id);
+  if (!exercise) throw error(404, 'Exercise not found');
+  const [goal, history] = await Promise.all([getActiveGoal(user.id, id), hasHistory(id)]);
+  return {
+    exercise: {
+      id: exercise.id,
+      name: exercise.name,
+      modality: exercise.modality,
+      kind: exercise.kind,
+      unit: exercise.unit,
+      loadIncrement: exercise.loadIncrement != null ? Number(exercise.loadIncrement) : null,
+      muscleGroups: exercise.muscleGroups,
+      defaultGoal: exercise.defaultGoal,
+      tracksSpeedZones: exercise.tracksSpeedZones,
+      archived: exercise.isArchived,
+      custom: exercise.ownerId != null
+    },
+    goal: goal
+      ? {
+          goal: goal.goal,
+          staminaMode: goal.staminaMode,
+          repLow: goal.repLow,
+          repHigh: goal.repHigh,
+          targetSets: goal.targetSets,
+          targetRir: goal.targetRir,
+          cardioMetric: goal.cardioMetric
+        }
+      : null,
+    hasHistory: history
   };
 }
 

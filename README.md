@@ -72,20 +72,34 @@ the first one that answers is used). Change it later under **Me → Server**.
 ## Connect Claude (MCP)
 
 The server exposes an [MCP](https://modelcontextprotocol.io) endpoint at **`https://<your-server>/mcp`**
-so an AI assistant can read your training data and leave comments you'll see in the app.
+so an AI assistant can read your training data, leave comments you'll see in the app, and — with the
+`write` permission — log and edit workouts, manage exercises, goals and routines for you.
 
 1. In Claude: **Settings → Connectors → Add custom connector**, paste the URL (also shown under
    **Me → Connected apps**). Claude Code: `claude mcp add --transport http overload https://<your-server>/mcp`.
 2. You'll be sent to an Overload sign-in/consent page. Approve, and you're connected.
 
 Auth is OAuth 2.1 (dynamic client registration + PKCE), served by the app itself — nothing to
-configure. Permissions: `read` (all your data) and `comment` (add/remove comments). OAuth tokens only
-work on `/mcp`, never the app API. Disconnect any client from **Me → Connected apps**.
+configure. Permissions: `read` (all your data), `comment` (add/remove comments) and `write` (create,
+change and delete training data). OAuth tokens only work on `/mcp`, never the app API. Disconnect any
+client from **Me → Connected apps**. Clients connected before `write` existed must disconnect and
+reconnect to be granted it.
 
-Tools: `get_profile`, `list_workouts`, `get_workout`, `list_exercises`, `get_exercise_history`,
-`get_personal_records`, `get_recommendations`, `get_routines`, `export_all_data`, `list_comments`,
-`add_comment`, `delete_comment`. Comments appear on the workout / exercise screens (set comments on
-their workout), and general notes under **Me**.
+Tools:
+
+- **Read** — `get_profile`, `list_workouts`, `get_workout`, `list_exercises`, `get_exercise`, `get_exercise_history`,
+  `get_personal_records`, `get_recommendations`, `get_routines`, `get_day_plan`, `export_all_data`,
+  `list_comments`.
+- **Comment** — `add_comment`, `delete_comment`. Comments appear on the workout / exercise screens
+  (set comments on their workout), and general notes under **Me**.
+- **Write** — workouts: `create_workout` (a whole session with sets/cardio in one call, back-dating
+  supported), `update_workout`, `delete_workout`, `add_workout_exercise`, `update_workout_exercise`,
+  `remove_workout_exercise`, `log_sets`, `update_set`, `delete_set`, `log_cardio`, `delete_cardio`;
+  exercises: `create_exercise`, `update_exercise`, `delete_exercise` (archives if it has history),
+  `set_exercise_goal`, `clear_exercise_goal`; routines: `create_routine`, `update_routine`,
+  `delete_routine`, `set_weekly_schedule`, `set_day_plan`; targets: `update_next_target`,
+  `regenerate_targets`; `update_profile`. Writes are owner-checked, built-in exercises are read-only,
+  and changes to a finished workout re-run PR detection and next-session targets like the app does.
 
 > The server must be reachable from the client over **HTTPS** — for Claude.ai that means publicly
 > reachable, since Anthropic's servers make the connection. `ORIGIN` must match the public URL.

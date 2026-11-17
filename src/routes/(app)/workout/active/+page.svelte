@@ -11,6 +11,7 @@
   import { api, apiJson } from '$lib/client/api';
   import { send, flush } from '$lib/client/outbox';
   import { zoneLabelsFor } from '$lib/format';
+  import { loadStep, tracksWeight } from '$lib/exercise';
 
   type Goal = 'strength' | 'endurance' | 'stamina';
   type LoggedSet = { weight: number | null; reps: number; rir: number | null; isWarmup: boolean };
@@ -95,8 +96,8 @@
       name: ex.name,
       goal,
       unit: ex.unit ?? 'lb',
-      loadIncrement: ex.loadIncrement ? Number(ex.loadIncrement) : 5,
-      bodyweight: ex.modality === 'bodyweight' || ex.loadIncrement == null,
+      loadIncrement: loadStep(ex),
+      bodyweight: !tracksWeight(ex),
       kind: ex.kind ?? 'resistance',
       tracksSpeedZones: !!ex.tracksSpeedZones,
       target: targetFor(ex),

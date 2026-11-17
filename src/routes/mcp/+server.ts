@@ -41,7 +41,12 @@ async function handle(msg: RpcRequest, auth: McpAuth) {
         instructions:
           "Overload is the user's workout tracker. Read their training data with the read tools " +
           '(start with get_profile, list_workouts or list_exercises), and use add_comment to leave ' +
-          'feedback they will see in the app on a workout, exercise, or set. Weights are in the ' +
+          'feedback they will see in the app on a workout, exercise, or set. With the write ' +
+          'permission you can also log workouts (create_workout takes exercises, sets and cardio ' +
+          'in one call), correct sets, manage custom exercises and goals, build routines and the ' +
+          'weekly schedule, and adjust next-session targets. Look ids up with the read tools first ' +
+          '(exercises via list_exercises — prefer built-ins over creating duplicates), and confirm ' +
+          'with the user before deleting anything. Weights are in the ' +
           "exercise's unit; RIR = reps in reserve."
       };
     }
@@ -57,8 +62,8 @@ async function handle(msg: RpcRequest, auth: McpAuth) {
           annotations: {
             title: t.title,
             readOnlyHint: t.readOnly,
-            destructiveHint: t.name === 'delete_comment',
-            idempotentHint: t.readOnly,
+            destructiveHint: !t.readOnly && (t.destructive ?? false),
+            idempotentHint: t.readOnly || (t.idempotent ?? false),
             openWorldHint: false
           }
         }))

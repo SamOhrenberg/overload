@@ -1,6 +1,8 @@
 /**
- * MCP tools: read-only views over the user's data, plus comments. Every tool
- * is scoped to the token's user; nothing here can modify training data.
+ * MCP tools. Read tools ("read" scope) are views over the user's data;
+ * comment tools ("comment") add/remove notes the user sees in the app; write
+ * tools ("write", see writeTools.ts) create, change and delete training data.
+ * Every tool is scoped to the token's user.
  */
 import { and, desc, eq, gte, inArray, lte, isNull, or } from 'drizzle-orm';
 import { db } from '$lib/server/db';
@@ -13,11 +15,20 @@ import {
   exerciseGoals,
   type CommentTarget
 } from '$lib/server/db/schema';
-import type { McpAuth, Scope } from '$lib/server/auth/oauth';
 import { getWorkoutDetail } from '$lib/server/services/workouts';
 import { exerciseHistory, lastPerformedByExercise } from '$lib/server/services/history';
-import { getPendingRecommendations } from '$lib/server/services/recommendations';
-import { listGroups, getWeeklySchedule, getAllMemberships } from '$lib/server/services/routines';
+import { getRecommendationsForPrefill } from '$lib/server/services/recommendations';
+import { getVisibleExercise, hasHistory } from '$lib/server/services/exercises';
+import { getActiveGoal } from '$lib/server/services/goals';
+import { tracksWeight } from '$lib/exercise';
+import {
+  listGroups,
+  getWeeklySchedule,
+  getAllMemberships,
+  resolveActiveGroups,
+  exercisesForGroups,
+  getExerciseGroupIds
+} from '$lib/server/services/routines';
 import { detectStall } from '$lib/server/engine/stall';
 import { exportUserData } from '$lib/server/services/export';
 import {
@@ -28,28 +39,10 @@ import {
   listComments,
   targetExists
 } from '$lib/server/services/comments';
+import { ArgReader, ToolError, obj, uuidProp, type Args, type Tool } from './args';
+import { WRITE_TOOLS } from './writeTools';
 
-type Args = Record<string, unknown>;
-
-export class ToolError extends Error {}
-
-type Tool = {
-  name: string;
-  title: string;
-  description: string;
-  scope: Scope;
-  readOnly: boolean;
-  inputSchema: Record<string, unknown>;
-  run: (auth: McpAuth, args: Args) => Promise<unknown>;
-};
-
-const uuidProp = (description: string) => ({ type: 'string', format: 'uuid', description });
-const obj = (properties: Record<string, unknown> = {}, required: string[] = []) => ({
-  type: 'object',
-  properties,
-  required,
-  additionalProperties: false
-});
+export { ToolError };
 
 function str(args: Args, key: string, required = false): string | null {
   const v = args[key];
@@ -126,7 +119,8 @@ export const TOOLS: Tool[] = [
     scope: 'read',
     readOnly: true,
     inputSchema: obj({
-      trainedOnly: { type: 'boolean', description: 'Only exercises with at least one logged session. Default false.' }
+      trainedOnly: { type: 'boolean', description: 'Only exercises with at least one logged session. Default false.' },
+      includeArchived: { type: 'boolean', description: 'Also list archived custom exercises. Default false.' }
     }),
     async run(auth, args) {
       const [all, goals, last] = await Promise.all([
@@ -136,7 +130,7 @@ export const TOOLS: Tool[] = [
           .where(
             and(
               or(isNull(exercises.ownerId), eq(exercises.ownerId, auth.userId)),
-              eq(exercises.isArchived, false)
+              args.includeArchived ? undefined : eq(exercises.isArchived, false)
             )
           )
           .orderBy(exercises.name),
@@ -158,7 +152,11 @@ export const TOOLS: Tool[] = [
             kind: e.kind,
             muscleGroups: e.muscleGroups,
             unit: e.unit,
+            tracksWeight: tracksWeight(e),
+            loadIncrement: e.loadIncrement != null ? Number(e.loadIncrement) : null,
+            tracksSpeedZones: e.tracksSpeedZones,
             custom: e.ownerId != null,
+            ...(e.isArchived ? { archived: true } : {}),
             goal: g
               ? {
                   goal: g.goal,
@@ -173,6 +171,55 @@ export const TOOLS: Tool[] = [
             lastPerformed: last.get(e.id) ?? null
           };
         });
+    }
+  },
+  {
+    name: 'get_exercise',
+    title: 'Get exercise',
+    description:
+      "One exercise in full: its settings (type, unit, whether sets take a weight and the weight step, muscles, default goal), the user's goal settings (rep range, sets, RIR), which routines include it, and whether it has logged history. Use before update_exercise or set_exercise_goal.",
+    scope: 'read',
+    readOnly: true,
+    inputSchema: obj({ exerciseId: uuidProp('Exercise id from list_exercises.') }, ['exerciseId']),
+    async run(auth, args) {
+      const r = new ArgReader(args).only('exerciseId');
+      const id = r.uuid('exerciseId', { required: true })!;
+      const e = await getVisibleExercise(auth.userId, id);
+      if (!e) throw new ToolError('Exercise not found.');
+      const [goal, history, groupIds, groups] = await Promise.all([
+        getActiveGoal(auth.userId, id),
+        hasHistory(id),
+        getExerciseGroupIds(auth.userId, id),
+        listGroups(auth.userId)
+      ]);
+      return {
+        id: e.id,
+        name: e.name,
+        custom: e.ownerId != null,
+        editable: e.ownerId != null,
+        archived: e.isArchived,
+        modality: e.modality,
+        kind: e.kind,
+        unit: e.unit,
+        tracksWeight: tracksWeight(e),
+        loadIncrement: e.loadIncrement != null ? Number(e.loadIncrement) : null,
+        muscleGroups: e.muscleGroups,
+        defaultGoal: e.defaultGoal,
+        tracksSpeedZones: e.tracksSpeedZones,
+        goal: goal
+          ? {
+              goal: goal.goal,
+              staminaMode: goal.staminaMode,
+              repRange: goal.repLow != null ? [goal.repLow, goal.repHigh] : null,
+              targetSets: goal.targetSets,
+              targetRir: goal.targetRir,
+              cardioMetric: goal.cardioMetric
+            }
+          : null,
+        effectiveGoal: goal?.goal ?? e.defaultGoal ?? 'strength',
+        routines: groups.filter((g) => groupIds.includes(g.id)).map((g) => ({ id: g.id, name: g.name })),
+        hasHistory: history
+      };
     }
   },
   {
@@ -297,16 +344,17 @@ export const TOOLS: Tool[] = [
     name: 'get_recommendations',
     title: 'Get next-session targets',
     description:
-      "The app's pending progression targets for each exercise (what to do next time), with the engine's rationale.",
+      "The app's current progression target for each exercise (what to do next time), with the engine's rationale. status: pending (suggested), accepted, or modified (adjusted by the user or update_next_target).",
     scope: 'read',
     readOnly: true,
     inputSchema: obj(),
-    run: (auth) => getPendingRecommendations(auth.userId)
+    run: (auth) => getRecommendationsForPrefill(auth.userId)
   },
   {
     name: 'get_routines',
     title: 'Get routines',
-    description: "The user's exercise groups (e.g. Push, Legs), which exercises are in each, and the weekly schedule (0=Sunday).",
+    description:
+      "The user's routines (exercise groups such as Push or Legs) with their exercises, and the weekly schedule mapping weekday (0=Sunday) to routine ids.",
     scope: 'read',
     readOnly: true,
     inputSchema: obj(),
@@ -316,12 +364,47 @@ export const TOOLS: Tool[] = [
         getWeeklySchedule(auth.userId),
         getAllMemberships(auth.userId)
       ]);
+      const ids = [...new Set(memberships.map((m) => m.exerciseId))];
+      const names = new Map(
+        (ids.length
+          ? await db
+              .select({ id: exercises.id, name: exercises.name })
+              .from(exercises)
+              .where(inArray(exercises.id, ids))
+          : []
+        ).map((e) => [e.id, e.name])
+      );
       return {
-        groups: groups.map((g) => ({
+        routines: groups.map((g) => ({
           ...g,
-          exerciseIds: memberships.filter((m) => m.groupId === g.id).map((m) => m.exerciseId)
+          exercises: memberships
+            .filter((m) => m.groupId === g.id)
+            .map((m) => ({ id: m.exerciseId, name: names.get(m.exerciseId) }))
         })),
         weeklySchedule: schedule
+      };
+    }
+  },
+  {
+    name: 'get_day_plan',
+    title: 'Get plan for a date',
+    description:
+      'Which routines (and their exercises) are planned for a date: the one-off override if set, otherwise the weekly schedule. source says which.',
+    scope: 'read',
+    readOnly: true,
+    inputSchema: obj({ date: { type: 'string', description: 'YYYY-MM-DD. Default: today (UTC).' } }),
+    async run(auth, args) {
+      const r = new ArgReader(args).only('date');
+      const date = r.day('date') ?? new Date().toISOString().slice(0, 10);
+      const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+      const plan = await resolveActiveGroups(auth.userId, date, dow);
+      const exs = await exercisesForGroups(plan.groups.map((g) => g.id));
+      return {
+        date,
+        dayOfWeek: dow,
+        source: plan.source,
+        routines: plan.groups,
+        exercises: exs.map((e) => ({ id: e.id, name: e.name, kind: e.kind, unit: e.unit }))
       };
     }
   },
@@ -395,13 +478,15 @@ export const TOOLS: Tool[] = [
     description: 'Remove a comment by id (e.g. one that is outdated).',
     scope: 'comment',
     readOnly: false,
+    destructive: true,
     inputSchema: obj({ commentId: uuidProp('Comment id.') }, ['commentId']),
     async run(auth, args) {
       const ok = await deleteComment(auth.userId, uuid(args, 'commentId')!);
       if (!ok) throw new ToolError('Comment not found.');
       return { deleted: true };
     }
-  }
+  },
+  ...WRITE_TOOLS
 ];
 
 function targetType(args: Args, required: boolean): CommentTarget | null {

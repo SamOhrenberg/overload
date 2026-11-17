@@ -56,6 +56,7 @@
     >
       <span class="text-body text-fg">{ex.name}</span>
       <span class="flex items-center gap-2">
+        {#if ex.ownerId}<span class="text-micro uppercase tracking-wide text-fg-muted">Custom</span>{/if}
         {#if ex.defaultGoal}<GoalChip goal={ex.defaultGoal} />{/if}
         <ChevronRight size={18} class="text-fg-muted" />
       </span>
@@ -64,3 +65,22 @@
     <p class="py-8 text-center text-caption text-fg-muted">No match.</p>
   {/each}
 </div>
+
+{#if data.archived?.length}
+  <details class="mt-6">
+    <summary class="cursor-pointer text-micro uppercase tracking-wide text-fg-muted">
+      Archived ({data.archived.length})
+    </summary>
+    <div class="mt-2 space-y-1">
+      {#each data.archived as ex (ex.id)}
+        <a
+          href={resolve(`/exercises/${ex.id}/edit`)}
+          class="flex items-center justify-between rounded-md bg-surface px-4 py-3"
+        >
+          <span class="text-body text-fg-2">{ex.name}</span>
+          <ChevronRight size={18} class="text-fg-muted" />
+        </a>
+      {/each}
+    </div>
+  </details>
+{/if}

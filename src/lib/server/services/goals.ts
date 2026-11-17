@@ -2,19 +2,16 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { exerciseGoals } from '$lib/server/db/schema';
 import type { Goal, StaminaMode } from '$lib/server/db/schema';
+import { goalDefaults } from '$lib/exercise';
 
-/** Sensible defaults for each goal, used when a user first tags an exercise. */
-export function goalDefaults(goal: Goal, staminaMode: StaminaMode = 'cardio') {
-  switch (goal) {
-    case 'strength':
-      return { repLow: 3, repHigh: 6, targetSets: 3, targetRir: 2, staminaMode: null };
-    case 'endurance':
-      return { repLow: 12, repHigh: 20, targetSets: 3, targetRir: 1, staminaMode: null };
-    case 'stamina':
-      return staminaMode === 'work_capacity'
-        ? { repLow: 15, repHigh: 30, targetSets: 3, targetRir: 1, staminaMode }
-        : { repLow: null, repHigh: null, targetSets: 1, targetRir: 0, staminaMode };
-  }
+export { goalDefaults };
+
+/** Drop the user's goal for an exercise so it falls back to the exercise default. */
+export async function clearGoal(userId: string, exerciseId: string) {
+  await db
+    .update(exerciseGoals)
+    .set({ active: false })
+    .where(and(eq(exerciseGoals.userId, userId), eq(exerciseGoals.exerciseId, exerciseId)));
 }
 
 export async function getActiveGoal(userId: string, exerciseId: string) {

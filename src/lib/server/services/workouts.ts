@@ -95,10 +95,14 @@ export async function getWorkoutDetail(userId: string, workoutId: string) {
           weight: s.weight != null ? Number(s.weight) : null,
           reps: s.reps,
           rir: s.rir,
+          rpe: s.rpe != null ? Number(s.rpe) : null,
+          tempo: s.tempo,
+          restSec: s.restSec,
           isPr: s.isPr
         })),
         cardio: bout
           ? {
+              id: bout.id,
               durationSec: bout.durationSec,
               distance: bout.distance != null ? Number(bout.distance) : null,
               avgPaceSec: bout.avgPaceSec,

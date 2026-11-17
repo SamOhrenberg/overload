@@ -19,7 +19,8 @@ import { oauthClients, oauthCodes, oauthTokens } from '$lib/server/db/schema';
 
 export const SCOPES = {
   read: 'Read all of your training data',
-  comment: 'Leave and remove comments on your data'
+  comment: 'Leave and remove comments on your data',
+  write: 'Log, edit and delete your workouts, exercises, goals and routines'
 } as const;
 export type Scope = keyof typeof SCOPES;
 export const ALL_SCOPES = Object.keys(SCOPES) as Scope[];
