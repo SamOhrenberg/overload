@@ -39,6 +39,18 @@ export async function clearDataCache() {
   if (hasCaches()) await caches.delete(DATA_CACHE).catch(() => {});
 }
 
+/** Paths whose last load fell back to the cached copy (server unreachable). */
+const fromCache = new Set<string>();
+
+/**
+ * Did the last load of this screen's view come from the offline cache? A page
+ * that just saved a change uses this to keep its optimistic state rather than
+ * revert to cached data from before the change.
+ */
+export function viewServedFromCache(path: string): boolean {
+  return fromCache.has(`/api/view${path}`);
+}
+
 /** Send the user to first-run setup when no API is configured yet. */
 export function requireEndpoint() {
   if (needsSetup()) redirect(307, resolve('/connect'));
@@ -64,12 +76,16 @@ export async function loadJson<T>(path: string): Promise<T> {
   }
   if (res?.ok) {
     const text = await res.text();
+    fromCache.delete(path);
     void cachePut(path, text);
     return JSON.parse(text) as T;
   }
   if (!res || res.status >= 500) {
     const cached = await cacheGet(path);
-    if (cached) return JSON.parse(cached) as T;
+    if (cached) {
+      fromCache.add(path);
+      return JSON.parse(cached) as T;
+    }
     error(503, 'Offline');
   }
   error(res.status, await errorMessage(res));
@@ -89,7 +105,7 @@ export async function warmCache() {
     WARM.map(async (v) => {
       const path = `/api/view${v}`;
       try {
-        const res = await api(path);
+        const res = await api(path, {}, { quiet: true });
         if (res.ok) await cachePut(path, await res.text());
       } catch {
         /* offline — try next time */

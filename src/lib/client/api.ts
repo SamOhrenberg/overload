@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { track } from './activity.svelte';
 
 /**
  * Configurable API client. The UI can be served from the home server, from
@@ -169,8 +170,40 @@ export async function resolveBase(): Promise<string | null> {
   return null;
 }
 
+/** Thrown when a request is abandoned because the server took too long. */
+export class TimeoutError extends Error {
+  constructor() {
+    super('The server is taking too long to respond. Check your connection and try again.');
+    this.name = 'TimeoutError';
+  }
+}
+
+export type ApiOptions = {
+  /**
+   * Give up after this many ms. Defaults to DEFAULT_TIMEOUT_MS for idempotent
+   * methods and to no timeout for POST: abandoning a POST the server may
+   * already have applied, then replaying it from the outbox, would duplicate it
+   * (e.g. a logged set).
+   */
+  timeoutMs?: number;
+  /** Background traffic (cache warm-up, outbox replay): don't show it as activity. */
+  quiet?: boolean;
+};
+
+/**
+ * On a slow or stalled network a fetch can hang for minutes before the browser
+ * gives up, leaving the UI frozen. Idempotent requests are cut off after this
+ * long so loads fall back to cached data and writes are queued for retry.
+ */
+export const DEFAULT_TIMEOUT_MS = 12_000;
+
 /** Fetch against the active API base, attaching the bearer token if present. */
-export async function api(path: string, init: RequestInit = {}): Promise<Response> {
+export function api(path: string, init: RequestInit = {}, opts: ApiOptions = {}): Promise<Response> {
+  const p = request(path, init, opts);
+  return opts.quiet ? p : track(p);
+}
+
+async function request(path: string, init: RequestInit, opts: ApiOptions): Promise<Response> {
   // Nothing answered (offline / server down): still aim at the preferred
   // endpoint so the request fails fast — or the service worker can answer it
   // from its cache — instead of hitting the UI's own origin.
@@ -179,7 +212,41 @@ export async function api(path: string, init: RequestInit = {}): Promise<Respons
   const token = getToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  return fetch(`${base}${path}`, fetchInit(base, { ...init, headers, credentials: 'include' }));
+
+  const method = (init.method ?? 'GET').toUpperCase();
+  const timeoutMs = opts.timeoutMs ?? (method === 'POST' ? undefined : DEFAULT_TIMEOUT_MS);
+  if (!timeoutMs) {
+    return fetch(`${base}${path}`, fetchInit(base, { ...init, headers, credentials: 'include' }));
+  }
+
+  // Our own controller, also following any signal the caller passed in.
+  const ctrl = new AbortController();
+  const outer = init.signal;
+  const onOuterAbort = () => ctrl.abort(outer?.reason);
+  if (outer?.aborted) ctrl.abort(outer.reason);
+  else outer?.addEventListener('abort', onOuterAbort, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, timeoutMs);
+  try {
+    return await fetch(
+      `${base}${path}`,
+      fetchInit(base, { ...init, headers, credentials: 'include', signal: ctrl.signal })
+    );
+  } catch (e) {
+    if (timedOut) {
+      // The base we cached may be the problem (e.g. LAN address after leaving
+      // home) — re-probe on the next request.
+      resetBase();
+      throw new TimeoutError();
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener('abort', onOuterAbort);
+  }
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {

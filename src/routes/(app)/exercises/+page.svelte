@@ -51,7 +51,7 @@
 <div class="space-y-1">
   {#each filtered as ex (ex.id)}
     <a
-      href={`/exercises/${ex.id}`}
+      href={resolve(`/exercises/${ex.id}`)}
       class="flex items-center justify-between rounded-md bg-surface px-4 py-3"
     >
       <span class="text-body text-fg">{ex.name}</span>

@@ -46,7 +46,7 @@ async function remove(id: string) {
  * before it was ever sent or queued, so fall back to getRandomValues (available
  * everywhere) and finally Math.random.
  */
-function newId(): string {
+function randomId(): string {
   const c = globalThis.crypto;
   if (c?.randomUUID) return c.randomUUID();
   const bytes = new Uint8Array(16);
@@ -56,6 +56,32 @@ function newId(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const h = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/**
+ * Queue keys sort in creation order, because IndexedDB returns (and we replay)
+ * items sorted by key, and order matters: replaying an older "set today's
+ * groups" after a newer one would undo it. The "t" prefix sorts after the hex
+ * digits of the plain UUIDs used by older builds, so writes already queued by
+ * them still replay first.
+ */
+let seq = 0;
+function newId(): string {
+  const ms = String(Date.now()).padStart(15, '0');
+  const n = String(seq++ % 1_000_000).padStart(6, '0');
+  return `t${ms}${n}-${randomId()}`;
+}
+
+/**
+ * Replays (and sends that must wait their turn behind queued writes) run one at
+ * a time, so two overlapping replays can't deliver the same item twice or out
+ * of order.
+ */
+let lock: Promise<unknown> = Promise.resolve();
+function exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const run = lock.then(fn);
+  lock = run.catch(() => {});
+  return run;
 }
 
 /**
@@ -76,11 +102,26 @@ export async function send(path: string, body: unknown, method = 'POST'): Promis
     body: JSON.stringify(body)
   };
   if (!browser) return false;
+
+  // Older writes are still waiting: this one must not overtake them (it could
+  // be undone when they replay). Queue it behind them and replay in order.
+  const waiting = await all().catch(() => [] as Queued[]);
+  if (waiting.length) {
+    try {
+      await put(item);
+    } catch {
+      return false; // can't queue — nothing more we can do safely
+    }
+    await flush({ quiet: false });
+    const still = await all().catch(() => [] as Queued[]);
+    return !still.some((q) => q.id === item.id);
+  }
+
   try {
     const res = await api(path, { method, body: item.body });
     if (res.ok) return true; // delivered
   } catch {
-    /* network error — fall through to queue */
+    /* network error / timeout — fall through to queue */
   }
   await put(item).catch(() => {});
   return false; // queued for retry
@@ -110,66 +151,84 @@ export async function discard(id: string): Promise<void> {
 
 export type RetryResult = { id: string; path: string; ok: boolean; status?: number; error?: string };
 
+/** Server trouble worth waiting out, rather than a rejection of this write. */
+const transient = (status: number) => status >= 500 || status === 408 || status === 429;
+
 /**
  * Replay the queue, returning a per-item result so the UI can show exactly what
  * happened (status code or network error) instead of failing silently.
  */
-export async function retry(): Promise<RetryResult[]> {
-  const out: RetryResult[] = [];
-  if (!browser) return out;
-  resetBase();
-  let items: Queued[] = [];
-  try {
-    items = await all();
-  } catch (e) {
-    return [{ id: '-', path: '(indexeddb)', ok: false, error: String(e) }];
-  }
-  for (const item of items) {
+export function retry(): Promise<RetryResult[]> {
+  if (!browser) return Promise.resolve([]);
+  return exclusive(async () => {
+    const out: RetryResult[] = [];
+    resetBase();
+    let items: Queued[] = [];
     try {
-      const res = await api(item.path, { method: item.method, body: item.body });
-      // Only a confirmed success removes a write. A rejection (even a 4xx such
-      // as an expired session) KEEPS it queued and visible so it is never lost —
-      // the user decides whether to discard it.
-      if (res.ok) await remove(item.id);
-      out.push({ id: item.id, path: item.path, ok: res.ok, status: res.status });
+      items = await all();
     } catch (e) {
-      out.push({ id: item.id, path: item.path, ok: false, error: String(e) });
+      return [{ id: '-', path: '(indexeddb)', ok: false, error: String(e) }];
     }
-  }
-  return out;
+    let blocked = false;
+    for (const item of items) {
+      if (blocked) {
+        // Keep replay order: a later write must not land before an earlier one.
+        out.push({ id: item.id, path: item.path, ok: false, error: 'Waiting on an earlier change' });
+        continue;
+      }
+      try {
+        const res = await api(item.path, { method: item.method, body: item.body });
+        // Only a confirmed success removes a write. A rejection (even a 4xx such
+        // as an expired session) KEEPS it queued and visible so it is never lost —
+        // the user decides whether to discard it.
+        if (res.ok) await remove(item.id);
+        else if (transient(res.status)) blocked = true;
+        out.push({ id: item.id, path: item.path, ok: res.ok, status: res.status });
+      } catch (e) {
+        blocked = true;
+        out.push({ id: item.id, path: item.path, ok: false, error: String(e) });
+      }
+    }
+    return out;
+  });
 }
 
-/** Replay everything queued. Called on reconnect, refocus, and on app start. */
-export async function flush(): Promise<void> {
+/**
+ * Replay everything queued, oldest first. Called on reconnect, refocus, on app
+ * start, and by send() when a new write has to wait behind queued ones.
+ */
+export function flush({ quiet = true }: { quiet?: boolean } = {}): Promise<void> {
   // Don't gate on navigator.onLine — it can falsely read `false` (iOS/PWA, LAN
   // TLS) and would then never replay the queue. Just attempt; a genuinely
   // offline request rejects and we stop until the next trigger.
-  if (!browser) return;
-  let items: Queued[] = [];
-  try {
-    items = await all();
-  } catch {
-    return;
-  }
-  if (!items.length) return;
-  // The server may have come back on a different/recovered base (e.g. after a
-  // redeploy), so forget any cached "unreachable" result and re-probe.
-  resetBase();
-  for (const item of items) {
+  if (!browser) return Promise.resolve();
+  return exclusive(async () => {
+    let items: Queued[] = [];
     try {
-      const res = await api(item.path, { method: item.method, body: item.body });
-      if (res.ok) {
-        await remove(item.id); // delivered — safe to drop
-      } else if (res.status >= 500 || res.status === 408 || res.status === 429) {
-        break; // server having trouble — stop and retry the whole queue later
-      }
-      // Any other non-OK (e.g. a 401 from an expired session) is KEPT queued and
-      // left visible in the Pending-sync view. An unsent write is never discarded
-      // automatically — only the user may discard it.
+      items = await all();
     } catch {
-      break; // genuinely offline / server unreachable — retry later
+      return;
     }
-  }
+    if (!items.length) return;
+    // The server may have come back on a different/recovered base (e.g. after a
+    // redeploy), so forget any cached "unreachable" result and re-probe.
+    resetBase();
+    for (const item of items) {
+      try {
+        const res = await api(item.path, { method: item.method, body: item.body }, { quiet });
+        if (res.ok) {
+          await remove(item.id); // delivered — safe to drop
+        } else if (transient(res.status)) {
+          break; // server having trouble — stop and retry the whole queue later
+        }
+        // Any other non-OK (e.g. a 401 from an expired session) is KEPT queued and
+        // left visible in the Pending-sync view. An unsent write is never discarded
+        // automatically — only the user may discard it.
+      } catch {
+        break; // genuinely offline / server unreachable — retry later
+      }
+    }
+  });
 }
 
 export function startOutbox() {

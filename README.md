@@ -5,6 +5,14 @@
   A self-hosted, open-source workout tracker and progression assistant — a mobile-first PWA.
 </p>
 
+<p align="center">
+  <img src="screenshots/home.png" width="200" alt="Today's plan">
+  <img src="screenshots/active-workout.png" width="200" alt="Logging a set">
+  <img src="screenshots/exercise-strength.png" width="200" alt="Estimated-1RM trend">
+</p>
+
+<p align="center">📸 <strong><a href="./portfolio.md">See the full screenshot tour →</a></strong></p>
+
 ---
 
 ## What it is

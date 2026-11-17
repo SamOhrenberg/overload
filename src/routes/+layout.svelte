@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import '../app.css';
   import { startOutbox } from '$lib/client/outbox';
+  import ActivityBar from '$lib/components/ActivityBar.svelte';
   let { children } = $props();
 
   onMount(() => {
@@ -17,4 +18,5 @@
   });
 </script>
 
+<ActivityBar />
 {@render children()}
